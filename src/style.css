@@ -101,3 +101,4 @@ footer { text-align: center; padding: 1.5rem; }
 .top nav button { white-space: nowrap; }
 @media (max-width: 560px) { .brand { font-size: 1.2rem; } .top nav { gap: .35rem; } .top nav .link { font-size: .9rem; } }
 #inList li { grid-template-columns: 7.5rem 1fr auto; }
+#otherList li { grid-template-columns: 1fr auto auto; }

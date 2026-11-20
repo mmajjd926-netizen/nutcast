@@ -22,6 +22,18 @@ let mintUrl = localStorage.getItem('nutcast:mint') ?? DEMO_MINT;
 let wallet = new EcashWallet(mintUrl, store);
 let payer = walletPayer(wallet);
 
+/** Every mint this browser holds ecash at (the inbox receives at the payer's mint, so there can be several). */
+function mintBalances(): { mint: string; sats: number }[] {
+  const out: { mint: string; sats: number }[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const m = /^nutcast:(https?:\/\/.+):proofs$/.exec(localStorage.key(i) ?? '');
+    if (!m) continue;
+    const sats = m[1] === mintUrl ? wallet.balance() : new EcashWallet(m[1], store).balance();
+    if (sats > 0 || m[1] === mintUrl) out.push({ mint: m[1], sats });
+  }
+  return out.sort((a, b) => b.sats - a.sats);
+}
+
 function refreshBalance() {
   const b = String(wallet.balance());
   $('balance').textContent = b;
@@ -29,14 +41,33 @@ function refreshBalance() {
   const test = /testnut|localhost|127\.0\.0\.1/.test(mintUrl);
   $('mintWarn').classList.toggle('hidden', !test);
   $('mintReal').classList.toggle('hidden', test);
+  const others = mintBalances().filter((x) => x.mint !== mintUrl);
+  $('otherMints').classList.toggle('hidden', !others.length);
+  $('otherList').replaceChildren(...others.map((x) => {
+    const use = el('button', { type: 'button', className: 'link', textContent: 'use this mint' });
+    use.onclick = () => {
+      ($('mintUrl') as HTMLInputElement).value = x.mint;
+      setMint(x.mint);
+    };
+    return el('li', {}, el('span', { textContent: new URL(x.mint).host + new URL(x.mint).pathname.replace(/\/$/, '') }), el('span', { textContent: `${x.sats} sat` }), use);
+  }));
+  const other = others.reduce((s, x) => s + x.sats, 0);
+  $('balance').title = other ? `${b} sat at ${new URL(mintUrl).host}, plus ${other} sat at other mints (open the wallet to switch)` : `${b} sat at ${new URL(mintUrl).host}`;
 }
 
 function setMint(url: string) {
-  mintUrl = url.replace(/\/+$/, '');
+  url = url.replace(/\/+$/, '');
+  // the mint field also fires 'change' on blur; re-rendering then would swallow a click on the mint list
+  if (url === mintUrl) return;
+  mintUrl = url;
   localStorage.setItem('nutcast:mint', mintUrl);
   wallet = new EcashWallet(mintUrl, store);
   payer = walletPayer(wallet);
+  // an invoice on screen belongs to the previous mint; that mint's unpaid top-ups wait until it is chosen again
+  $('invoiceBox').classList.add('hidden');
+  $('topupState').textContent = '';
   refreshBalance();
+  if (wallet.pendingTopUps().length) pollTopUps();
 }
 
 function walletMsg(text: string, bad = false) {

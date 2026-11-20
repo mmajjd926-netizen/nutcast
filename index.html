@@ -106,6 +106,10 @@
       <p id="mintWarn" class="warn small hidden">This is a test mint: its Lightning is fake and its sats are not real. Perfect for trying Nutcast.</p>
       <p id="mintReal" class="small muted hidden">Real sats: the mint holds them for you. Keep only what you will stream and boost.</p>
       <p class="big"><span id="balance2">0</span> sat</p>
+      <div id="otherMints" class="hidden">
+        <p class="small muted">You also hold ecash at these mints (payments received in your inbox stay at the mint they came from). Streaming and boosts spend from the mint above.</p>
+        <ul id="otherList" class="history"></ul>
+      </div>
 
       <h3>Top up over Lightning</h3>
       <div class="row"><input id="topupAmt" type="number" min="1" value="500" /> <button id="topupBtn" type="button">Get invoice</button></div>
