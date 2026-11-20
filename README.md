@@ -82,6 +82,8 @@ Episode 2 of the demo show uses such a block. Episode 1 uses a classic Lightning
 - Boosts split the same way and report each recipient's result, fee included.
 - Podcaster inbox: finds NIP-17 gift wraps for the key, checks the seal signature and that rumor and seal share the
   sender, reads the NUT-18 payload and receives it; a failed receive (mint offline) is retried next time, spent proofs are not.
+- Several mints: ecash is received at the mint the listener paid from, so the wallet lists every mint it holds sats at
+  and switches to one in a click. Each mint keeps its own proofs and its own pending top-ups.
 - Feed text is never rendered as HTML.
 
 ## How it is built
