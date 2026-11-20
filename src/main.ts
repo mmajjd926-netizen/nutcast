@@ -320,3 +320,6 @@ $('crMake').onclick = () => {
     err.textContent = (e as Error).message;
   }
 };
+
+// For debugging from the console: nutcast.streamer, nutcast.wallet
+Object.assign(window, { nutcast: { streamer, get wallet() { return wallet; } } });
