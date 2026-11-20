@@ -88,3 +88,4 @@ dialog::backdrop { background: #3b2a1e66; }
 .warn { color: var(--warn); background: #fff3dd; border-radius: 8px; padding: 0.4rem 0.6rem; }
 .hidden { display: none !important; }
 footer { text-align: center; padding: 1.5rem; }
+.eptitle { font-size: 1.15rem; }

@@ -98,21 +98,19 @@ $('receiveBtn').onclick = async () => {
 };
 
 $('backupBtn').onclick = async () => {
-  const bal = wallet.balance();
-  if (!bal) return walletMsg('Nothing to back up yet.');
+  if (!wallet.balance()) return walletMsg('Nothing to back up yet.');
+  if (!confirm('Move all ecash out of this browser into one token? Keep the token safe: whoever has it has the sats.')) return;
   try {
-    // A swap into a single token; the wallet keeps nothing, the token holds it all.
-    const token = await wallet.sendToken(bal - estimateSwapFee(), 'Nutcast backup');
+    const token = await wallet.exportAll('Nutcast backup');
     const out = $('backupOut') as HTMLTextAreaElement;
     out.classList.remove('hidden');
     out.value = token;
-    walletMsg('Keep this token safe: it is your ecash now. Paste it back under “Receive” to restore.');
+    walletMsg('This token is your ecash now. Paste it under “Receive” (here or in any Cashu wallet) to get it back.');
     refreshBalance();
   } catch (e) {
     walletMsg(String((e as Error).message ?? e), true);
   }
 };
-const estimateSwapFee = () => 0;
 
 // ---------- feed ----------
 let feed: Feed | undefined;

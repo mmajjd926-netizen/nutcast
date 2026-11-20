@@ -1,6 +1,7 @@
 // Live test against the public test mint (fake Lightning: every invoice counts as paid).
 // Run: NUTCAST_LIVE=1 npx vitest run test/wallet.live.test.ts
 import { describe, expect, it } from 'vitest';
+import { invoiceFor } from '../src/core/lnurl';
 import { DEMO_MINT, EcashWallet, MemoryStore, type TopUp } from '../src/core/wallet';
 
 async function claim(w: EcashWallet, t: TopUp): Promise<number> {
@@ -32,12 +33,21 @@ live('EcashWallet on testnut', () => {
     expect(got).toBeLessThanOrEqual(30);
     expect(a.balance()).toBeLessThanOrEqual(70);
 
-    // An invoice from the same fake mint: melting pays it internally.
-    const other = await b.createTopUp(10);
+    // A real invoice from a Lightning address; the test mint's fake Lightning "pays" it, no sats move.
+    const invoice = await invoiceFor('npub12mqvl5z2ek0xrn3448ueyvm9qxzl53wj7zcv2r47yv2wlk7h54xsf9w6le@npub.cash', 10);
     const before = a.balance();
-    const res = await a.payInvoice(other.invoice);
+    const res = await a.payInvoice(invoice);
     expect(res.paid).toBe(true);
     expect(res.amount).toBe(10);
     expect(a.balance()).toBe(before - 10 - res.feePaid);
+
+    // Back up everything as one token, restore it elsewhere.
+    const left = a.balance();
+    const backup = await a.exportAll('backup');
+    expect(a.balance()).toBe(0);
+    const c = new EcashWallet(DEMO_MINT, new MemoryStore());
+    const restored = await c.receive(backup);
+    expect(restored).toBeGreaterThan(0);
+    expect(restored).toBeLessThanOrEqual(left);
   });
 });

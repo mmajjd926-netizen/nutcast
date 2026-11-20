@@ -142,6 +142,17 @@ export class EcashWallet {
     });
   }
 
+  /** Hand over every proof as one token, without a swap (no fee now; whoever receives it pays the mint's input fee). */
+  exportAll(memo?: string): Promise<string> {
+    return this.exclusive(async () => {
+      const all = this.proofs();
+      if (!all.length) throw new Error('Nothing to export.');
+      const token = getEncodedToken({ mint: this.mintUrl, proofs: all, memo });
+      this.save([]);
+      return token;
+    });
+  }
+
   // ---- pay a bolt11 invoice (NUT-05) ----
   async meltQuote(invoice: string) {
     await this.load();
