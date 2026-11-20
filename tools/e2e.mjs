@@ -24,6 +24,16 @@ await p.waitForSelector('#history li', { timeout: 30000 });
 await p.waitForTimeout(3000);
 console.log('history:', (await p.$$eval('#history li', (l) => l.map((x) => x.innerText.replace(/\s+/g, ' ')))).join(' | '));
 console.log('balance after boost:', await p.textContent('#balance'));
+// episode 2 pays ecash over NUT-18 (Nostr transport)
+await p.click('#episodes li:nth-child(2) button');
+await p.waitForTimeout(500);
+console.log('split ep2:', (await p.$$eval('#split li', (l) => l.map((x) => x.innerText.replace(/\s+/g, ' ')))).join(' | '));
+await p.fill('#boostAmt', '21');
+await p.fill('#boostMsg', 'ecash boost test');
+await p.click('#boostBtn');
+await p.waitForFunction(() => document.querySelectorAll('#history li').length >= 3, null, { timeout: 30000 });
+console.log('history:', (await p.$$eval('#history li', (l) => l.map((x) => x.innerText.replace(/\s+/g, ' ')))).join(' | '));
+console.log('balance after ecash boost:', await p.textContent('#balance'));
 await p.screenshot({ path: 'shots/demo.png', fullPage: true });
 console.log(logs.filter((l) => !l.startsWith('debug')).slice(0, 15).join('\n'));
 await b.close();

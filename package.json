@@ -11,7 +11,8 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@cashu/cashu-ts": "^4.13.1"
+    "@cashu/cashu-ts": "^4.13.1",
+    "nostr-tools": "^2.26.1"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
