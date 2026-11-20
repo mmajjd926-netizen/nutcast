@@ -56,8 +56,10 @@ The `podcast:value` tag already allows other `type`s than `lightning`. Nutcast r
   every other player keeps working with the lightning one. Nothing breaks.
 
 The podcaster's side is one paste: the **For podcasters** page in Nutcast turns an npub (plus the relays and mints
-they want) into the `creqA…` request and the whole XML block. They receive the ecash in any Cashu wallet that reads
-NUT-18 over Nostr.
+they want) into the `creqA…` request and the whole XML block. The same page has an **inbox**: sign in with a NIP-07
+extension (the key never leaves it) or a key kept in the browser, press *Check for payments*, and every NIP-17 gift wrap
+carrying ecash is opened and received into the page's wallet (each mint keeps its own balance). Any other Cashu wallet
+that reads NUT-18 over Nostr works too.
 
 Discussion in the Podcasting 2.0 namespace: [podcast-namespace#798](https://github.com/Podcastindex-org/podcast-namespace/discussions/798).
 
@@ -73,6 +75,8 @@ Episode 2 of the demo show uses such a block. Episode 1 uses a classic Lightning
 - Streaming counts only real listening: the media clock while playing, no seeks, no jumps; per-recipient
   accrual in millisats; session **budget** that caps what is really paid (unreachable shares do not eat it).
 - Boosts split the same way and report each recipient's result, fee included.
+- Podcaster inbox: finds NIP-17 gift wraps for the key, checks the seal signature and that rumor and seal share the
+  sender, reads the NUT-18 payload and receives it; a failed receive (mint offline) is retried next time, spent proofs are not.
 - Feed text is never rendered as HTML.
 
 ## How it is built
@@ -86,6 +90,7 @@ TypeScript, Vite, [`@cashu/cashu-ts`](https://github.com/cashubtc/cashu-ts) 4.x,
 | `wallet.ts` | ecash wallet over cashu-ts: top-up, receive, send, melt, NUT-18 payloads, backup |
 | `lnurl.ts` | LNURL-pay with an amount check on the bolt11 |
 | `nostr.ts` | NIP-17 delivery of NUT-18 payments |
+| `inbox.ts` | the receiving side: open gift wraps (NIP-07 or local key), read ecash payments |
 | `stream.ts` | accrual, budget, batched settlement, boosts |
 | `payer.ts` | glue: Lightning addresses via melt, payment requests via ecash |
 
@@ -97,7 +102,7 @@ npm run dev
 ```
 
 `tools/e2e.mjs` and `tools/e2e-stream.mjs` drive the built site in headless Chromium: demo feed → top-up → boost
-to a Lightning address → ecash boost over Nostr → real playback with streaming on.
+to a Lightning address → ecash boost over Nostr → the podcaster's inbox receives it → real playback with streaming on.
 
 ## Limits, honestly
 
