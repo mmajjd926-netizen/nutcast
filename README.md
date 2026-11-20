@@ -5,6 +5,11 @@
 **Live demo:** https://mmajjd926-netizen.github.io/nutcast/ (press *Try the demo show*; the default mint is the
 test mint `testnut.cashu.space`, so top-ups are free and nothing is real money).
 
+**Real show:** [Nodesignal in Nutcast](https://mmajjd926-netizen.github.io/nutcast/?feed=https%3A%2F%2Fserve.podhome.fm%2Frss%2Fe8df0b13-47de-544a-99b7-ec7cbd960a16).
+Its feed and its Lightning addresses allow browser requests, so the whole path runs from the page: every episode's
+split (host + guest Lightning addresses) is read and paid. On the test mint the melt is simulated; pick a real mint
+in the wallet (Minibits, Macadamia, Voltz are suggested) and the same boost is real.
+
 Nutcast is a podcast player that reads a feed's Podcasting 2.0 value split (`<podcast:value>`) and lets listeners
 **stream sats per minute** and **send boosts with a message**, paid from an ecash wallet that lives in the page.
 No node, no channel, no account, no server of ours: it is a static site.
@@ -60,6 +65,7 @@ Episode 2 of the demo show uses such a block. Episode 1 uses a classic Lightning
 
 - Any RSS feed by URL (if the host allows cross-origin reads) or pasted XML; channel and item value blocks
   (item overrides channel); `suggested` sets the default stream rate.
+- The feed's `suggested` rate starts the stream slider, capped at 100 sat/min (some feeds suggest 21 000).
 - Wallet on any mint: NUT-04 top-up with QR, receive a pasted token, NUT-05 melt (with a NUT-07 state check that puts proofs back if a melt fails), and
   **back up** = every proof exported as one token without a swap. Proofs live in `localStorage`.
 - Streaming counts only real listening: the media clock while playing, no seeks, no jumps; per-recipient

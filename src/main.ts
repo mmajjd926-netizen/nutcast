@@ -25,7 +25,9 @@ function refreshBalance() {
   const b = String(wallet.balance());
   $('balance').textContent = b;
   $('balance2').textContent = b;
-  $('mintWarn').classList.toggle('hidden', !/testnut|localhost|127\.0\.0\.1/.test(mintUrl));
+  const test = /testnut|localhost|127\.0\.0\.1/.test(mintUrl);
+  $('mintWarn').classList.toggle('hidden', !test);
+  $('mintReal').classList.toggle('hidden', test);
 }
 
 function setMint(url: string) {
@@ -170,6 +172,15 @@ $('feedForm').onsubmit = (e) => {
   if (url) loadUrl(url);
 };
 $('demoBtn').onclick = () => loadUrl(new URL('demo.xml', document.baseURI).toString());
+// Real shows whose feeds (and Lightning addresses) let a web page read them.
+const FEATURED = [{ name: 'Nodesignal', url: 'https://serve.podhome.fm/rss/e8df0b13-47de-544a-99b7-ec7cbd960a16' }];
+for (const f of FEATURED) {
+  $('featured').append(el('button', { className: 'link', textContent: f.name, onclick: () => {
+    ($('feedUrl') as HTMLInputElement).value = f.url;
+    history.replaceState(null, '', '?feed=' + encodeURIComponent(f.url));
+    loadUrl(f.url);
+  } }));
+}
 $('pasteBtn').onclick = () => $('pasteXml').classList.toggle('hidden');
 $('pasteXml').oninput = (e) => {
   const v = (e.target as HTMLTextAreaElement).value;
@@ -182,7 +193,9 @@ function select(ep: Episode) {
   $('epTitle').textContent = ep.title;
   const audio = $('audio') as HTMLAudioElement;
   if (ep.enclosureUrl && audio.src !== ep.enclosureUrl) audio.src = ep.enclosureUrl;
-  if (block?.suggestedSatsPerMinute && !rateTouched) ($('rate') as HTMLInputElement).value = String(Math.max(1, Math.round(block.suggestedSatsPerMinute)));
+  // Feeds suggest anything from 5 to 21 000 sat/min; start at most at MAX_DEFAULT_RATE and let the listener raise it.
+  if (block?.suggestedSatsPerMinute && !rateTouched) ($('rate') as HTMLInputElement).value = String(Math.min(MAX_DEFAULT_RATE, Math.max(1, Math.round(block.suggestedSatsPerMinute))));
+  readOpts();
   renderSplit();
 }
 
@@ -215,6 +228,7 @@ function renderSplit() {
 
 // ---------- streaming ----------
 let rateTouched = false;
+const MAX_DEFAULT_RATE = 100;
 const streamer = new Streamer({ satsPerMinute: 10, budgetSats: 300 });
 function readOpts() {
   streamer.opts.satsPerMinute = Math.max(0, Number(($('rate') as HTMLInputElement).value) || 0);

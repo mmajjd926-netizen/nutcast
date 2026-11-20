@@ -27,6 +27,7 @@
         <span class="sep">·</span>
         <button id="pasteBtn" class="link">Paste RSS instead</button>
       </div>
+      <div class="row small" id="featured"><span class="muted">Real Value4Value shows:</span></div>
       <textarea id="pasteXml" class="hidden" rows="6" placeholder="Paste the feed's XML here"></textarea>
       <p id="feedError" class="error hidden"></p>
     </section>
@@ -95,8 +96,15 @@
     <form method="dialog" class="dlg">
       <h2>Your ecash wallet</h2>
       <p class="muted small">Ecash lives in this browser. Back it up as a token before you clear site data.</p>
-      <label>Mint <input id="mintUrl" type="url" /></label>
+      <label>Mint <input id="mintUrl" type="url" list="knownMints" /></label>
+      <datalist id="knownMints">
+        <option value="https://testnut.cashu.space">test mint, fake sats</option>
+        <option value="https://mint.minibits.cash/Bitcoin">Minibits</option>
+        <option value="https://mint.macadamia.cash">Macadamia</option>
+        <option value="https://mint.lnvoltz.com">Voltz</option>
+      </datalist>
       <p id="mintWarn" class="warn small hidden">This is a test mint: its Lightning is fake and its sats are not real. Perfect for trying Nutcast.</p>
+      <p id="mintReal" class="small muted hidden">Real sats: the mint holds them for you. Keep only what you will stream and boost.</p>
       <p class="big"><span id="balance2">0</span> sat</p>
 
       <h3>Top up over Lightning</h3>
