@@ -5,6 +5,7 @@ import { walletPayer } from './core/payer';
 import { boost, Streamer, type Settlement } from './core/stream';
 import { chooseBlock, parseFeed, payable, splitAmount, type Episode, type Feed, type ValueBlock } from './core/value';
 import { DEMO_MINT, EcashWallet, type Store } from './core/wallet';
+import { extensionSigner, fetchPayments, localSigner, newLocalKey, type Signer } from './core/inbox';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const store: Store = { get: (k) => localStorage.getItem(k), set: (k, v) => localStorage.setItem(k, v) };
@@ -337,6 +338,74 @@ $('crMake').onclick = () => {
     out.select();
   } catch (e) {
     err.textContent = (e as Error).message;
+  }
+};
+
+// ---------- inbox: ecash paid to the podcaster's request ----------
+let signer: Signer | undefined;
+async function useSigner(sg: Signer, who: string) {
+  signer = sg;
+  const pk = await sg.getPublicKey();
+  ($('crNpub') as HTMLInputElement).value = nip19.npubEncode(pk);
+  $('inWho').textContent = who;
+  ($('inCheck') as HTMLButtonElement).disabled = false;
+}
+$('inExt').onclick = async () => {
+  try {
+    await useSigner(extensionSigner((window as unknown as { nostr?: Parameters<typeof extensionSigner>[0] }).nostr), 'Using your Nostr extension. The key never leaves it.');
+  } catch (e) {
+    $('inWho').textContent = (e as Error).message;
+  }
+};
+$('inLocal').onclick = async () => {
+  let sk = localStorage.getItem('nutcast:inboxKey');
+  if (!sk) localStorage.setItem('nutcast:inboxKey', (sk = newLocalKey()));
+  await useSigner(localSigner(sk), 'Using a key kept in this browser (good for trying; clearing site data loses it, so take your sats out first).');
+};
+const doneKey = 'nutcast:inboxDone';
+const done = new Set<string>(JSON.parse(localStorage.getItem(doneKey) ?? '[]'));
+$('inCheck').onclick = async () => {
+  if (!signer) return;
+  const btn = $('inCheck') as HTMLButtonElement;
+  btn.disabled = true;
+  $('inState').textContent = 'Asking relays…';
+  try {
+    const relays = ($('crRelays') as HTMLInputElement).value.split(/\s+/).filter((r) => /^wss?:\/\//.test(r));
+    const pays = await fetchPayments(signer, relays.length ? relays : undefined);
+    let got = 0;
+    for (const p of pays) {
+      let status: string;
+      let ok = true;
+      if (done.has(p.wrapId)) status = 'already received';
+      else {
+        try {
+          // ecash is received at the mint it came from; each mint has its own balance here
+          const w = p.mint === mintUrl ? wallet : new EcashWallet(p.mint, store);
+          const n = await w.receive(p.token);
+          got += p.mint === mintUrl ? n : 0;
+          status = `+${n} sat` + (p.mint === mintUrl ? '' : ` at ${new URL(p.mint).host}`);
+          done.add(p.wrapId);
+        } catch (e) {
+          ok = false;
+          const msg = (e as Error).message;
+          status = msg.slice(0, 80);
+          // spent proofs will never be received; anything else (network, mint down) is worth another try
+          if (/spent/i.test(msg)) done.add(p.wrapId);
+          else status += ' (will retry)';
+        }
+      }
+      $('inList').prepend(el('li', { className: ok ? 'ok' : 'bad' },
+        el('span', { textContent: new Date(p.at * 1000).toLocaleDateString() }),
+        el('span', { textContent: `${p.amount} sat${p.memo ? ' · ' + p.memo : ''}` }),
+        el('span', { textContent: status })));
+    }
+    localStorage.setItem(doneKey, JSON.stringify([...done]));
+    $('inState').textContent = pays.length ? `${pays.length} payment(s) found.` + (got ? ` ${got} sat added to your wallet.` : '') : 'No payments yet.';
+    refreshBalance();
+  } catch (e) {
+    $('inState').textContent = (e as Error).message;
+  } finally {
+    btn.disabled = false;
   }
 };
 

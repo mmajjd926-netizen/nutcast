@@ -134,8 +134,16 @@
       <div class="row"><button id="crMake" type="button">Make my snippet</button></div>
       <p id="crErr" class="error small"></p>
       <textarea id="crOut" rows="7" readonly class="hidden"></textarea>
-      <p class="muted small">Payments arrive as NIP-17 private messages carrying a NUT-18 payload to that key: claim them with a Cashu wallet that receives payment requests over Nostr.
-        Splits work as usual: give each person their own recipient line.</p>
+      <p class="muted small">Splits work as usual: give each person their own recipient line.</p>
+
+      <h3>Your inbox</h3>
+      <p class="small">Payments arrive as private Nostr messages (NIP-17) carrying ecash (NUT-18). Open them here and the sats land in this browser's wallet,
+        or claim them with any Cashu wallet that receives payment requests over Nostr.</p>
+      <div class="row"><button id="inExt" type="button">Use my Nostr extension</button>
+        <button id="inLocal" type="button" class="link">or a key kept in this browser</button></div>
+      <p id="inWho" class="small muted"></p>
+      <div class="row"><button id="inCheck" type="button" disabled>Check for payments</button> <span id="inState" class="small muted"></span></div>
+      <ul id="inList" class="history"></ul>
       <div class="row end"><button value="close">Close</button></div>
     </form>
   </dialog>

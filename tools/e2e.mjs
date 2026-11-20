@@ -41,5 +41,16 @@ await p.click('#crMake');
 const snip = await p.inputValue('#crOut');
 console.log('snippet ok:', /type="cashu"/.test(snip) && /address="creqA/.test(snip), 'err:', await p.textContent('#crErr'));
 await p.screenshot({ path: 'shots/creator.png' });
+// inbox: the demo's ecash payee is our own test key (NUTCAST_INBOX_SK); open the boost we just sent and receive it
+if (process.env.NUTCAST_INBOX_SK) {
+  const before = Number(await p.textContent('#balance'));
+  await p.evaluate((sk) => localStorage.setItem('nutcast:inboxKey', sk), process.env.NUTCAST_INBOX_SK);
+  await p.click('#inLocal');
+  await p.click('#inCheck');
+  await p.waitForFunction(() => /found|No payments|rror/.test(document.getElementById('inState').textContent), null, { timeout: 30000 });
+  console.log('inbox:', await p.textContent('#inState'), '|', (await p.$$eval('#inList li', (l) => l.map((x) => x.innerText.replace(/\s+/g, ' ')))).slice(0, 3).join(' | '));
+  console.log('balance after inbox:', await p.textContent('#balance'), '(was', before + ')');
+  await p.screenshot({ path: 'shots/inbox.png' });
+}
 console.log(logs.filter((l) => !l.startsWith('debug')).slice(0, 15).join('\n'));
 await b.close();
