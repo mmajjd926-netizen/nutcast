@@ -20,6 +20,7 @@ const errs = [];
   await p.goto(url);
   await p.click('#demoBtn');
   await p.waitForSelector('#episodes li', { timeout: 15000 });
+  await p.waitForFunction(() => { const i = document.getElementById('cover'); return i.complete && i.naturalWidth > 0; }, null, { timeout: 15000 });
   await p.screenshot({ path: 'shots/phone.png', fullPage: true });
   const overflow = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   console.log('horizontal overflow px:', overflow);

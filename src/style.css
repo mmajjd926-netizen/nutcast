@@ -92,3 +92,9 @@ footer { text-align: center; padding: 1.5rem; }
 .qr { display: block; width: min(240px, 70vw); margin: .6rem auto; background: #fff; border-radius: 8px; }
 .qr svg { display: block; width: 100%; height: auto; }
 @media (max-width: 560px) { .brand small { display: none; } .top { gap: .5rem; } }
+.brand { white-space: nowrap; }
+.top nav { flex-wrap: nowrap; }
+.showhead img { flex-shrink: 0; }
+@media (max-width: 560px) { .showhead img { width: 72px; height: 72px; } }
+.top nav button { white-space: nowrap; }
+@media (max-width: 560px) { .brand { font-size: 1.2rem; } .top nav { gap: .35rem; } .top nav .link { font-size: .9rem; } }
