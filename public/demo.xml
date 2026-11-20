@@ -5,7 +5,7 @@
   <itunes:author>Arthur Scott Bailey, read by LibriVox volunteers</itunes:author>
   <link>https://librivox.org/</link>
   <description>A public-domain LibriVox recording, used to show how Nutcast pays a value split from ecash. The demo's recipients are the Nutcast developer's tip jar and an example keysend node; on the test mint no real sats move.</description>
-  <image><url>https://archive.org/download/the_tale_of_frisky_squirrel_1903_librivox/friskysquirrel_01_bailey.png</url></image>
+  <image><url>https://mmajjd926-netizen.github.io/nutcast/cover.svg</url></image>
   <podcast:value type="lightning" method="lnaddress" suggested="0.00000010000">
     <podcast:valueRecipient name="Nutcast demo jar (Lightning address)" type="lnaddress" address="npub12mqvl5z2ek0xrn3448ueyvm9qxzl53wj7zcv2r47yv2wlk7h54xsf9w6le@npub.cash" split="80"/>
     <podcast:valueRecipient name="Example keysend node" type="node" address="02000000000000000000000000000000000000000000000000000000000000000a" split="20"/>

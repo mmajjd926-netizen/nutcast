@@ -1,5 +1,6 @@
 import { PaymentRequest, PaymentRequestTransportType } from '@cashu/cashu-ts';
 import { nip19 } from 'nostr-tools';
+import { renderSVG } from 'uqr';
 import { walletPayer } from './core/payer';
 import { boost, Streamer, type Settlement } from './core/stream';
 import { chooseBlock, parseFeed, payable, splitAmount, type Episode, type Feed, type ValueBlock } from './core/value';
@@ -55,6 +56,10 @@ $('topupBtn').onclick = async () => {
     const t = await wallet.createTopUp(amount);
     $('invoiceBox').classList.remove('hidden');
     ($('invoice') as HTMLTextAreaElement).value = t.invoice;
+    const qr = $('invQr') as HTMLAnchorElement;
+    // the SVG is drawn by uqr from the invoice (paths only); the invoice comes from the mint
+    qr.innerHTML = renderSVG(t.invoice.toUpperCase(), { border: 2 });
+    qr.href = 'lightning:' + t.invoice;
     $('topupState').textContent = 'Waiting for payment…';
     pollTopUps();
   } catch (e) {

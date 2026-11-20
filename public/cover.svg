@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600">
+  <rect width="600" height="600" fill="#f3e6d3"/>
+  <g fill="none" stroke="#c8732e" stroke-linecap="round" stroke-width="14" opacity=".85">
+    <path d="M410 200a140 140 0 0 1 0 200"/>
+    <path d="M450 160a196 196 0 0 1 0 280" opacity=".7"/>
+    <path d="M490 120a252 252 0 0 1 0 360" opacity=".45"/>
+    <path d="M190 200a140 140 0 0 0 0 200"/>
+    <path d="M150 160a196 196 0 0 0 0 280" opacity=".7"/>
+    <path d="M110 120a252 252 0 0 0 0 360" opacity=".45"/>
+  </g>
+  <path d="M300 470c-70 0-108-60-108-150h216c0 90-38 150-108 150z" fill="#9a5a2a"/>
+  <path d="M300 470c-30-8-52-60-52-150h52z" fill="#b8733a" opacity=".6"/>
+  <path d="M180 300c0-60 54-96 120-96s120 36 120 96c0 14-8 22-22 22H202c-14 0-22-8-22-22z" fill="#5a3a22"/>
+  <path d="M200 286h200M214 262h172M240 238h120" stroke="#7a5233" stroke-width="8" stroke-linecap="round"/>
+  <path d="M300 204c0-26 8-44 26-58" stroke="#5a3a22" stroke-width="14" stroke-linecap="round" fill="none"/>
+  <text x="300" y="560" text-anchor="middle" font-family="Georgia, serif" font-size="44" fill="#3b2a1e">Frisky Squirrel</text>
+</svg>

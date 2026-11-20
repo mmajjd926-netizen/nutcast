@@ -1,27 +1,102 @@
 # Nutcast
 
-**Value4Value for any podcast, from a Cashu wallet in your browser.**
+**Value4Value for any podcast, paid from a Cashu wallet in your browser.**
 
-Nutcast is a podcast player that reads a feed's Podcasting 2.0 value split (`<podcast:value>`) and lets
-listeners stream sats per minute and send boosts with a message — paid from an ecash wallet that lives
-in the page. No node, no channel, no account.
+**Live demo:** https://mmajjd926-netizen.github.io/nutcast/ (press *Try the demo show*; the default mint is the
+test mint `testnut.cashu.space`, so top-ups are free and nothing is real money).
 
-- **Lightning-address recipients** are paid through the mint (LNURL-pay → bolt11 → NUT-05 melt), batched so
-  the mint's fee reserve stays small.
-- **Cashu recipients** (proposed `<podcast:value type="cashu" method="nut18">` with NUT-18 payment requests)
-  receive ecash directly: no Lightning fee per payment, so streaming can really settle every minute.
-- **Keysend-only recipients** cannot be reached from ecash; their share is shown as skipped and never
-  redistributed — the podcaster's split stands.
+Nutcast is a podcast player that reads a feed's Podcasting 2.0 value split (`<podcast:value>`) and lets listeners
+**stream sats per minute** and **send boosts with a message**, paid from an ecash wallet that lives in the page.
+No node, no channel, no account, no server of ours: it is a static site.
 
-Built for [Nut November](https://nutnovember.org) 2026 (Value4Value track). Work in progress.
+| Player | Wallet top-up | On a phone |
+|---|---|---|
+| ![player](shots/demo.png) | ![wallet](shots/wallet.png) | ![phone](shots/phone.png) |
 
-## Develop
+## Why
+
+Value4Value today needs the listener to run a Lightning node or keep money in a custodial app that speaks keysend.
+Most listeners have neither, so most of them never send a sat. Ecash fixes the listener side: a Cashu wallet is a
+few kilobytes in the browser, funded with one Lightning invoice. Nutcast then pays the split the podcaster
+already published:
+
+- **Lightning-address recipients** (`type="lnaddress"`) are paid through the mint: LNURL-pay (LUD-06/16, with the
+  boost message as a LUD-12 comment) → bolt11 → NUT-05 melt. Nutcast checks that the invoice asks for exactly the
+  amount it requested before paying. Streams are **batched** (default: settle at 21 sat per recipient) because
+  every melt reserves a Lightning fee.
+- **Keysend recipients** (`type="node"`) cannot be reached from ecash. Their share is shown as *not reachable* and
+  **never redistributed** to the others: the podcaster's split stands, the listener simply pays less.
+- **Cashu recipients**, a small proposal below, receive ecash directly. No Lightning hop, so no routing fee and no
+  fee reserve: streaming can settle **every minute, down to 1 sat**, and the payment is private (NIP-17 gift wrap).
+
+## Proposal: a `cashu` value block
+
+The `podcast:value` tag already allows other `type`s than `lightning`. Nutcast reads this one:
+
+```xml
+<podcast:value type="cashu" method="nut18" suggested="0.00000010000">
+  <podcast:valueRecipient name="Host" type="paymentrequest" address="creqA…" split="90"/>
+  <podcast:valueRecipient name="Producer" type="paymentrequest" address="creqA…" split="10"/>
+</podcast:value>
+```
+
+- `address` is a [NUT-18](https://github.com/cashubtc/nuts/blob/main/18.md) payment request with **no amount**
+  (the player fills it in), unit `sat`, optionally a list of mints the recipient accepts, and a transport.
+  Nutcast supports both NUT-18 transports: **Nostr** (NIP-17 private message to the recipient's npub, the default)
+  and **HTTP POST**.
+- The boost or stream message travels as the NUT-18 payload `memo`.
+- Split math is the same as for Lightning: `fee="true"` recipients take their percentage off the top, the rest is
+  shared by `split` weight, remainders go by largest remainder, so the sats always add up.
+- A feed can carry a `cashu` block **next to** its `lightning` block. Players that know ecash use the cashu one;
+  every other player keeps working with the lightning one. Nothing breaks.
+
+The podcaster's side is one paste: the **For podcasters** page in Nutcast turns an npub (plus the relays and mints
+they want) into the `creqA…` request and the whole XML block. They receive the ecash in any Cashu wallet that reads
+NUT-18 over Nostr.
+
+Episode 2 of the demo show uses such a block. Episode 1 uses a classic Lightning address + keysend split.
+
+## What works
+
+- Any RSS feed by URL (if the host allows cross-origin reads) or pasted XML; channel and item value blocks
+  (item overrides channel); `suggested` sets the default stream rate.
+- Wallet on any mint: NUT-04 top-up with QR, receive a pasted token, NUT-05 melt (with a NUT-07 state check that puts proofs back if a melt fails), and
+  **back up** = every proof exported as one token without a swap. Proofs live in `localStorage`.
+- Streaming counts only real listening: the media clock while playing, no seeks, no jumps; per-recipient
+  accrual in millisats; session **budget** that caps what is really paid (unreachable shares do not eat it).
+- Boosts split the same way and report each recipient's result, fee included.
+- Feed text is never rendered as HTML.
+
+## How it is built
+
+TypeScript, Vite, [`@cashu/cashu-ts`](https://github.com/cashubtc/cashu-ts) 4.x, `nostr-tools`. The logic is in
+`src/core/` and has no DOM dependency:
+
+| file | what |
+|---|---|
+| `value.ts` | parse feeds and value blocks, split math |
+| `wallet.ts` | ecash wallet over cashu-ts: top-up, receive, send, melt, NUT-18 payloads, backup |
+| `lnurl.ts` | LNURL-pay with an amount check on the bolt11 |
+| `nostr.ts` | NIP-17 delivery of NUT-18 payments |
+| `stream.ts` | accrual, budget, batched settlement, boosts |
+| `payer.ts` | glue: Lightning addresses via melt, payment requests via ecash |
 
 ```bash
 npm install
-npm test                                        # unit tests
-NUTCAST_LIVE=1 npx vitest run test/wallet.live.test.ts   # against testnut.cashu.space (fake Lightning)
+npm test                                   # unit tests (value, streaming)
+NUTCAST_LIVE=1 npx vitest run              # + wallet against testnut.cashu.space (fake Lightning)
 npm run dev
 ```
 
-License: MIT
+`tools/e2e.mjs` and `tools/e2e-stream.mjs` drive the built site in headless Chromium: demo feed → top-up → boost
+to a Lightning address → ecash boost over Nostr → real playback with streaming on.
+
+## Limits, honestly
+
+- Ecash is custodial: the mint holds the sats. Keep small amounts in a player wallet, and pick a mint you trust.
+- Browser storage is the wallet. Clearing site data without a backup loses the ecash.
+- A Nostr-delivered payment is final once a relay accepts it; if the recipient never reads it, the sats sit in
+  their inbox. That is the NUT-18 Nostr transport's model, not something Nutcast can fix.
+- Many podcast hosts block cross-origin feed reads; then paste the XML.
+
+Built for [Nut November](https://nutnovember.org) 2026. License: MIT.

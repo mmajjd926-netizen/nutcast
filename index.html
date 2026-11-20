@@ -101,7 +101,7 @@
 
       <h3>Top up over Lightning</h3>
       <div class="row"><input id="topupAmt" type="number" min="1" value="500" /> <button id="topupBtn" type="button">Get invoice</button></div>
-      <div id="invoiceBox" class="hidden"><textarea id="invoice" rows="3" readonly></textarea><button id="copyInv" type="button" class="link">Copy</button> <span id="topupState" class="muted small"></span></div>
+      <div id="invoiceBox" class="hidden"><a id="invQr" class="qr" title="Open in your Lightning wallet"></a><textarea id="invoice" rows="3" readonly></textarea><button id="copyInv" type="button" class="link">Copy</button> <span id="topupState" class="muted small"></span></div>
 
       <h3>Receive a token</h3>
       <div class="row"><input id="tokenIn" type="text" placeholder="cashuB…" /> <button id="receiveBtn" type="button">Receive</button></div>
