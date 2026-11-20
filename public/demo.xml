@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:podcast="https://podcastindex.org/namespace/1.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+<channel>
+  <title>The Tale of Frisky Squirrel (Nutcast demo)</title>
+  <itunes:author>Arthur Scott Bailey, read by LibriVox volunteers</itunes:author>
+  <link>https://librivox.org/</link>
+  <description>A public-domain LibriVox recording, used to show how Nutcast pays a value split from ecash. The demo's recipients are the Nutcast developer's tip jar and an example keysend node; on the test mint no real sats move.</description>
+  <image><url>https://archive.org/download/the_tale_of_frisky_squirrel_1903_librivox/friskysquirrel_01_bailey.png</url></image>
+  <podcast:value type="lightning" method="lnaddress" suggested="0.00000010000">
+    <podcast:valueRecipient name="Nutcast demo jar (Lightning address)" type="lnaddress" address="npub12mqvl5z2ek0xrn3448ueyvm9qxzl53wj7zcv2r47yv2wlk7h54xsf9w6le@npub.cash" split="80"/>
+    <podcast:valueRecipient name="Example keysend node" type="node" address="02000000000000000000000000000000000000000000000000000000000000000a" split="20"/>
+  </podcast:value>
+  <item>
+    <title>1 · Frisky Squirrel Finds Much To Do (split: Lightning address + keysend)</title>
+    <guid isPermaLink="false">frisky-01</guid>
+    <enclosure url="https://archive.org/download/the_tale_of_frisky_squirrel_1903_librivox/friskysquirrel_01_bailey_64kb.mp3" type="audio/mpeg" length="1731693"/>
+    <itunes:duration>03:36</itunes:duration>
+  </item>
+  <item>
+    <title>2 · Frisky Squirrel has a Fall (split: ecash over NUT-18)</title>
+    <guid isPermaLink="false">frisky-02</guid>
+    <enclosure url="https://archive.org/download/the_tale_of_frisky_squirrel_1903_librivox/friskysquirrel_02_bailey_64kb.mp3" type="audio/mpeg" length="1786496"/>
+    <itunes:duration>03:42</itunes:duration>
+    <podcast:value type="cashu" method="nut18" suggested="0.00000010000">
+      <podcast:valueRecipient name="Nutcast demo jar (ecash)" type="paymentrequest" address="creqAo2F0gaNhdGVub3N0cmFheD9ucHViMTJtcXZsNXoyZWsweHJuMzQ0OHVleXZtOXF4emw1M3dqN3pjdjJyNDd5djJ3bGs3aDU0eHNmOXc2bGVhZ4GCYW5iMTdhdWNzYXRhZHggTnV0Y2FzdCBkZW1vOiBlY2FzaCBmb3IgdGhlIHNob3c=" split="100"/>
+    </podcast:value>
+  </item>
+  <item>
+    <title>3 · The Stone that Walked</title>
+    <guid isPermaLink="false">frisky-03</guid>
+    <enclosure url="https://archive.org/download/the_tale_of_frisky_squirrel_1903_librivox/friskysquirrel_03_bailey_64kb.mp3" type="audio/mpeg" length="2097762"/>
+    <itunes:duration>04:21</itunes:duration>
+  </item>
+</channel>
+</rss>

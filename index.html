@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Nutcast — Value4Value with Cashu</title>
+  <meta name="description" content="Stream sats and boost any Podcasting 2.0 show from a Cashu ecash wallet in your browser." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌰</text></svg>" />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><span class="nut">🌰</span> Nutcast <small>value for value, in ecash</small></div>
+    <button id="walletBtn" class="pill" title="Your ecash wallet"><span id="balance">0</span> sat</button>
+  </header>
+
+  <main>
+    <section id="loader" class="card">
+      <h2>Open a podcast</h2>
+      <form id="feedForm" class="row">
+        <input id="feedUrl" type="url" placeholder="RSS feed URL (Podcasting 2.0)" />
+        <button type="submit">Load</button>
+      </form>
+      <div class="row small">
+        <button id="demoBtn" class="link">Try the demo show</button>
+        <span class="sep">·</span>
+        <button id="pasteBtn" class="link">Paste RSS instead</button>
+      </div>
+      <textarea id="pasteXml" class="hidden" rows="6" placeholder="Paste the feed's XML here"></textarea>
+      <p id="feedError" class="error hidden"></p>
+    </section>
+
+    <section id="show" class="hidden">
+      <div class="card showhead">
+        <img id="cover" alt="" />
+        <div>
+          <h2 id="showTitle"></h2>
+          <p id="showAuthor" class="muted"></p>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <h3>Episodes</h3>
+          <ol id="episodes" class="episodes"></ol>
+        </div>
+
+        <div class="col">
+          <div class="card" id="playerCard">
+            <h3 id="epTitle">Pick an episode</h3>
+            <audio id="audio" controls preload="none"></audio>
+          </div>
+
+          <div class="card">
+            <h3>Where your sats go</h3>
+            <ul id="split" class="split"></ul>
+            <p id="splitNote" class="muted small"></p>
+          </div>
+
+          <div class="card">
+            <h3>Stream while you listen</h3>
+            <div class="row">
+              <label>Rate <input id="rate" type="number" min="0" step="1" value="10" /> sat/min</label>
+              <label>Budget <input id="budget" type="number" min="0" step="10" value="300" /> sat</label>
+            </div>
+            <label class="switch"><input id="streamOn" type="checkbox" /> <span>Stream sats while the episode plays</span></label>
+            <div class="stats">
+              <div><b id="stStreamed">0</b><span>accrued</span></div>
+              <div><b id="stPaid">0</b><span>paid</span></div>
+              <div><b id="stFees">0</b><span>fees</span></div>
+              <div><b id="stLeft">0</b><span>budget left</span></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Boost</h3>
+            <div class="row">
+              <input id="boostAmt" type="number" min="1" value="100" />
+              <input id="boostMsg" type="text" maxlength="140" placeholder="A message for the show (optional)" />
+              <button id="boostBtn">Boost ⚡</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>History</h3>
+            <ul id="history" class="history"></ul>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="walletDlg">
+    <form method="dialog" class="dlg">
+      <h2>Your ecash wallet</h2>
+      <p class="muted small">Ecash lives in this browser. Back it up as a token before you clear site data.</p>
+      <label>Mint <input id="mintUrl" type="url" /></label>
+      <p id="mintWarn" class="warn small hidden">This is a test mint: its Lightning is fake and its sats are not real. Perfect for trying Nutcast.</p>
+      <p class="big"><span id="balance2">0</span> sat</p>
+
+      <h3>Top up over Lightning</h3>
+      <div class="row"><input id="topupAmt" type="number" min="1" value="500" /> <button id="topupBtn" type="button">Get invoice</button></div>
+      <div id="invoiceBox" class="hidden"><textarea id="invoice" rows="3" readonly></textarea><button id="copyInv" type="button" class="link">Copy</button> <span id="topupState" class="muted small"></span></div>
+
+      <h3>Receive a token</h3>
+      <div class="row"><input id="tokenIn" type="text" placeholder="cashuB…" /> <button id="receiveBtn" type="button">Receive</button></div>
+
+      <h3>Back up</h3>
+      <div class="row"><button id="backupBtn" type="button">Export all ecash as a token</button></div>
+      <textarea id="backupOut" class="hidden" rows="3" readonly></textarea>
+      <p id="walletMsg" class="small"></p>
+      <div class="row end"><button value="close">Close</button></div>
+    </form>
+  </dialog>
+
+  <footer class="muted small">Nutcast is open source (MIT) · <a href="https://github.com/mmajjd926-netizen/nutcast">GitHub</a> · built on <a href="https://cashu.space">Cashu</a> and <a href="https://github.com/Podcastindex-org/podcast-namespace/blob/main/docs/tags/value.md">podcast:value</a> · made for Nut November 2026</footer>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
