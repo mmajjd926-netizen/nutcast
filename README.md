@@ -14,6 +14,11 @@ Nutcast is a podcast player that reads a feed's Podcasting 2.0 value split (`<po
 **stream sats per minute** and **send boosts with a message**, paid from an ecash wallet that lives in the page.
 No node, no channel, no account, no server of ours: it is a static site.
 
+![Nutcast in 30 seconds: top up on the test mint, a Lightning boost split 80/20 (the keysend share is skipped, not redistributed), an ecash boost over NUT-18 with no fee, and the podcaster opening the payment in their inbox](shots/demo.gif)
+
+*Top up on the test mint → boost a Lightning-address split → boost an ecash split over NUT-18 (no Lightning fee) →
+the podcaster opens their inbox and the ecash lands in their wallet. Recorded headless with `tools/demo-video.mjs`.*
+
 | Player | Wallet top-up | On a phone |
 |---|---|---|
 | ![player](shots/demo.png) | ![wallet](shots/wallet.png) | ![phone](shots/phone.png) |

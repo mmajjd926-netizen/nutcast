@@ -73,6 +73,8 @@ audio { width: 100%; margin-top: 0.3rem; }
 .history { list-style: none; padding: 0; margin: 0; max-height: 14rem; overflow: auto; font-size: 0.85rem; }
 .history li { display: grid; grid-template-columns: 5.5rem 1fr auto; gap: 0.5rem; padding: 0.3rem 0; border-bottom: 1px dashed var(--line); }
 .history li.bad span:last-child { color: var(--bad); }
+.history li.old { color: var(--bark-2); }
+#inList li.ok span:last-child { color: var(--leaf); font-weight: 700; }
 
 dialog { border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); color: var(--bark); width: min(560px, 100% - 2rem); padding: 1.2rem; }
 dialog::backdrop { background: #3b2a1e66; }
@@ -98,3 +100,4 @@ footer { text-align: center; padding: 1.5rem; }
 @media (max-width: 560px) { .showhead img { width: 72px; height: 72px; } }
 .top nav button { white-space: nowrap; }
 @media (max-width: 560px) { .brand { font-size: 1.2rem; } .top nav { gap: .35rem; } .top nav .link { font-size: .9rem; } }
+#inList li { grid-template-columns: 7.5rem 1fr auto; }

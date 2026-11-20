@@ -1,0 +1,54 @@
+// Records the README demo: top up on testnut, Lightning boost, ecash boost over NUT-18, the podcaster's inbox.
+// Usage: NUTCAST_INBOX_SK=<hex> node tools/demo-video.mjs <url>; then tools/gif.sh turns shots/video/*.webm into shots/demo.gif
+import { chromium } from 'playwright';
+const url = process.argv[2] ?? 'http://127.0.0.1:4173/';
+const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
+const ctx = await b.newContext({ viewport: { width: 1100, height: 760 }, recordVideo: { dir: 'shots/video', size: { width: 1100, height: 760 } } });
+const p = await ctx.newPage();
+const wait = (ms) => p.waitForTimeout(ms);
+const type = async (sel, text) => { await p.fill(sel, ''); await p.type(sel, text, { delay: 60 }); };
+await p.goto(url);
+await wait(1200);
+await p.click('#demoBtn');
+await p.waitForSelector('#episodes li', { timeout: 15000 });
+await wait(1500);
+await p.click('#walletBtn');
+await wait(700);
+await type('#topupAmt', '300');
+await p.click('#topupBtn');
+await p.waitForSelector('#invQr svg', { timeout: 15000 }).catch(() => {});
+await p.waitForFunction(() => document.getElementById('balance').textContent !== '0', null, { timeout: 30000 });
+await wait(1500);
+await p.click('button[value=close]');
+await wait(600);
+await type('#boostAmt', '50');
+await type('#boostMsg', 'Lovely reading!');
+await p.click('#boostBtn');
+await p.waitForSelector('#history li', { timeout: 30000 });
+await p.locator('#history').scrollIntoViewIfNeeded();
+await wait(2500);
+await p.locator('#episodes').scrollIntoViewIfNeeded();
+await p.click('#episodes li:nth-child(2) button');
+await wait(1200);
+await p.locator('#split').scrollIntoViewIfNeeded();
+await wait(1200);
+await type('#boostAmt', '21');
+await type('#boostMsg', 'ecash, no fee');
+await p.click('#boostBtn');
+await p.waitForFunction(() => document.querySelectorAll('#history li').length >= 3, null, { timeout: 30000 });
+await p.locator('#history').scrollIntoViewIfNeeded();
+await wait(2500);
+if (process.env.NUTCAST_INBOX_SK) {
+  await p.evaluate((sk) => localStorage.setItem('nutcast:inboxKey', sk), process.env.NUTCAST_INBOX_SK);
+  await p.click('#creatorBtn');
+  await wait(900);
+  await p.click('#inLocal');
+  await p.click('#inCheck');
+  await p.waitForFunction(() => /found|No payments|rror/.test(document.getElementById('inState').textContent), null, { timeout: 30000 });
+  await p.locator('#inList').scrollIntoViewIfNeeded().catch(() => {});
+  await wait(3000);
+}
+const v = p.video();
+await ctx.close();
+console.log('video:', await v.path());
+await b.close();

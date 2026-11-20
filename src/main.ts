@@ -373,10 +373,11 @@ $('inCheck').onclick = async () => {
     const relays = ($('crRelays') as HTMLInputElement).value.split(/\s+/).filter((r) => /^wss?:\/\//.test(r));
     const pays = await fetchPayments(signer, relays.length ? relays : undefined);
     let got = 0;
+    $('inList').replaceChildren();
     for (const p of pays) {
       let status: string;
-      let ok = true;
-      if (done.has(p.wrapId)) status = 'already received';
+      let cls = 'ok';
+      if (done.has(p.wrapId)) (status = 'received earlier'), (cls = 'old');
       else {
         try {
           // ecash is received at the mint it came from; each mint has its own balance here
@@ -386,16 +387,15 @@ $('inCheck').onclick = async () => {
           status = `+${n} sat` + (p.mint === mintUrl ? '' : ` at ${new URL(p.mint).host}`);
           done.add(p.wrapId);
         } catch (e) {
-          ok = false;
           const msg = (e as Error).message;
-          status = msg.slice(0, 80);
-          // spent proofs will never be received; anything else (network, mint down) is worth another try
-          if (/spent/i.test(msg)) done.add(p.wrapId);
-          else status += ' (will retry)';
+          // spent proofs were already claimed (by another wallet holding this key, or earlier here);
+          // anything else (network, mint down) is worth another try
+          if (/spent/i.test(msg)) (status = 'claimed elsewhere'), (cls = 'old'), done.add(p.wrapId);
+          else (status = msg.slice(0, 80) + ' (will retry)'), (cls = 'bad');
         }
       }
-      $('inList').prepend(el('li', { className: ok ? 'ok' : 'bad' },
-        el('span', { textContent: new Date(p.at * 1000).toLocaleDateString() }),
+      $('inList').append(el('li', { className: cls },
+        el('span', { textContent: new Date(p.at * 1000).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }) }),
         el('span', { textContent: `${p.amount} sat${p.memo ? ' · ' + p.memo : ''}` }),
         el('span', { textContent: status })));
     }
