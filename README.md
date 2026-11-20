@@ -59,6 +59,8 @@ The podcaster's side is one paste: the **For podcasters** page in Nutcast turns 
 they want) into the `creqA…` request and the whole XML block. They receive the ecash in any Cashu wallet that reads
 NUT-18 over Nostr.
 
+Discussion in the Podcasting 2.0 namespace: [podcast-namespace#798](https://github.com/Podcastindex-org/podcast-namespace/discussions/798).
+
 Episode 2 of the demo show uses such a block. Episode 1 uses a classic Lightning address + keysend split.
 
 ## What works
