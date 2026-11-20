@@ -11,7 +11,8 @@
 <body>
   <header class="top">
     <div class="brand"><span class="nut">🌰</span> Nutcast <small>value for value, in ecash</small></div>
-    <button id="walletBtn" class="pill" title="Your ecash wallet"><span id="balance">0</span> sat</button>
+    <nav class="row"><button id="creatorBtn" class="link">For podcasters</button>
+    <button id="walletBtn" class="pill" title="Your ecash wallet"><span id="balance">0</span> sat</button></nav>
   </header>
 
   <main>
@@ -109,6 +110,24 @@
       <div class="row"><button id="backupBtn" type="button">Export all ecash as a token</button></div>
       <textarea id="backupOut" class="hidden" rows="3" readonly></textarea>
       <p id="walletMsg" class="small"></p>
+      <div class="row end"><button value="close">Close</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="creatorDlg">
+    <form method="dialog" class="dlg">
+      <h2>Take ecash for your show</h2>
+      <p class="small">Listeners using Nutcast can pay you in ecash directly — no Lightning fee per payment, so streaming really settles every minute.
+        Add a <code>cashu</code> value block next to your Lightning one; apps that do not know it simply ignore it.</p>
+      <label>Your Nostr key <input id="crNpub" type="text" placeholder="npub1… or nprofile1…" /></label>
+      <label>Relays <input id="crRelays" type="text" value="wss://relay.damus.io wss://nos.lol wss://relay.primal.net" /></label>
+      <label>Mints you accept <input id="crMints" type="text" placeholder="optional, space separated" /></label>
+      <label>Recipient name <input id="crName" type="text" value="Host" /></label>
+      <div class="row"><button id="crMake" type="button">Make my snippet</button></div>
+      <p id="crErr" class="error small"></p>
+      <textarea id="crOut" rows="7" readonly class="hidden"></textarea>
+      <p class="muted small">Payments arrive as NIP-17 private messages carrying a NUT-18 payload to that key: claim them with a Cashu wallet that receives payment requests over Nostr.
+        Splits work as usual: give each person their own recipient line.</p>
       <div class="row end"><button value="close">Close</button></div>
     </form>
   </dialog>

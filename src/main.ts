@@ -1,3 +1,5 @@
+import { PaymentRequest, PaymentRequestTransportType } from '@cashu/cashu-ts';
+import { nip19 } from 'nostr-tools';
 import { walletPayer } from './core/payer';
 import { boost, Streamer, type Settlement } from './core/stream';
 import { chooseBlock, parseFeed, payable, splitAmount, type Episode, type Feed, type ValueBlock } from './core/value';
@@ -294,3 +296,27 @@ if (qs) {
   ($('feedUrl') as HTMLInputElement).value = qs;
   loadUrl(qs);
 }
+
+// ---------- for podcasters ----------
+$('creatorBtn').onclick = () => ($('creatorDlg') as HTMLDialogElement).showModal();
+$('crMake').onclick = () => {
+  const err = $('crErr');
+  err.textContent = '';
+  try {
+    const raw = ($('crNpub') as HTMLInputElement).value.trim().replace(/^nostr:/, '');
+    const d = nip19.decode(raw);
+    const pubkey = d.type === 'npub' ? d.data : d.type === 'nprofile' ? d.data.pubkey : undefined;
+    if (!pubkey) throw new Error('Enter an npub or nprofile.');
+    const relays = ($('crRelays') as HTMLInputElement).value.split(/\s+/).filter((r) => /^wss?:\/\//.test(r));
+    const mints = ($('crMints') as HTMLInputElement).value.split(/\s+/).filter((m) => /^https?:\/\//.test(m));
+    const target = nip19.nprofileEncode({ pubkey, relays });
+    const pr = new PaymentRequest([{ type: PaymentRequestTransportType.NOSTR, target, tags: [['n', '17']] }], undefined, undefined, 'sat', mints.length ? mints : undefined, 'Value4Value', false);
+    const name = (($('crName') as HTMLInputElement).value.trim() || 'Host').replace(/[<>&"]/g, '');
+    const out = $('crOut') as HTMLTextAreaElement;
+    out.value = `<podcast:value type="cashu" method="nut18" suggested="0.00000010000">\n  <podcast:valueRecipient name="${name}" type="paymentrequest" address="${pr.toEncodedCreqA()}" split="100"/>\n</podcast:value>`;
+    out.classList.remove('hidden');
+    out.select();
+  } catch (e) {
+    err.textContent = (e as Error).message;
+  }
+};

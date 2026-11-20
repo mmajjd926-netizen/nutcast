@@ -35,5 +35,11 @@ await p.waitForFunction(() => document.querySelectorAll('#history li').length >=
 console.log('history:', (await p.$$eval('#history li', (l) => l.map((x) => x.innerText.replace(/\s+/g, ' ')))).join(' | '));
 console.log('balance after ecash boost:', await p.textContent('#balance'));
 await p.screenshot({ path: 'shots/demo.png', fullPage: true });
+await p.click('#creatorBtn');
+await p.fill('#crNpub', 'npub12mqvl5z2ek0xrn3448ueyvm9qxzl53wj7zcv2r47yv2wlk7h54xsf9w6le');
+await p.click('#crMake');
+const snip = await p.inputValue('#crOut');
+console.log('snippet ok:', /type="cashu"/.test(snip) && /address="creqA/.test(snip), 'err:', await p.textContent('#crErr'));
+await p.screenshot({ path: 'shots/creator.png' });
 console.log(logs.filter((l) => !l.startsWith('debug')).slice(0, 15).join('\n'));
 await b.close();
