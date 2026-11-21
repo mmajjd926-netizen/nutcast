@@ -88,6 +88,12 @@ Episode 2 of the demo show uses such a block. Episode 1 uses a classic Lightning
   sender, reads the NUT-18 payload and receives it; a failed receive (mint offline) is retried next time, spent proofs are not.
 - Several mints: ecash is received at the mint the listener paid from, so the wallet lists every mint it holds sats at
   and switches to one in a click. Each mint keeps its own proofs and its own pending top-ups.
+- **Works with cashu.me** (checked 2026-11-21): a podcaster request from Nutcast, with 21 sat filled in, pasted into
+  [cashu.me](https://wallet.cashu.me) is recognised as "Payment request via Nostr"; cashu.me sends it, and the
+  Nutcast inbox finds the gift wrap and receives the ecash (21 sat sent, 20 sat after the test mint's 1 sat input fee).
+  No shared code between the two wallets, only NUT-18 and NIP-17.
+
+  <img src="shots/cashu-me-pay.png" width="260" alt="cashu.me paying a Nutcast NUT-18 request over Nostr"> <img src="shots/inbox-cashu-me.png" width="480" alt="Nutcast inbox receiving the payment from cashu.me">
 - Feed text is never rendered as HTML.
 
 ## How it is built
