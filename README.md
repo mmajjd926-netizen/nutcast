@@ -93,7 +93,9 @@ Episode 2 of the demo show uses such a block. Episode 1 uses a classic Lightning
   an x-only key gets `02`), keeps the DLEQ proofs, and publishes a kind 9321 to the show's own relays. The wallet must be
   at one of the show's mints; otherwise Nutcast says which ones. Locked proofs can't come back, so an event no relay
   accepted is kept and sent again later. Checked end to end on the test mint: the demo show's 10019 lists testnut, the
-  nutzap lands on its relays, and the show's key redeems it (and nothing else can).
+  nutzap lands on its relays, and the show's key redeems it (and nothing else can). On mainnet, Nutcast sent a real
+  21 sat nutzap from mint.minibits.cash to Nodesignal (event `bd4b99976d49e7b1ce51084acb5069642fed22ed6af83b7172d3cd930bc80f7d`,
+  locked to the `03e88b…` key from its kind 10019).
 
   <img src="shots/nutzap.png" width="560" alt="Nutzap the show">
 - **Works with cashu.me** (checked 2026-11-21): a podcaster request from Nutcast, with 21 sat filled in, pasted into
