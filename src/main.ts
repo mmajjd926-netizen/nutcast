@@ -3,6 +3,7 @@ import { nip19 } from 'nostr-tools';
 import { renderSVG } from 'uqr';
 import { walletPayer } from './core/payer';
 import { boost, Streamer, type Settlement } from './core/stream';
+import { handoffBoost } from './core/handoff';
 import { chooseBlock, parseFeed, payable, splitAmount, type Episode, type Feed, type ValueBlock } from './core/value';
 import { DEMO_MINT, EcashWallet, type Store } from './core/wallet';
 import { extensionSigner, fetchPayments, localSigner, newLocalKey, type Signer } from './core/inbox';
@@ -329,6 +330,37 @@ $('boostBtn').onclick = async () => {
     btn.disabled = false;
     refreshBalance();
   }
+};
+
+// Boost from the listener's own wallet: one QR per recipient, nothing held here.
+$('handoffBtn').onclick = async () => {
+  if (!block) return;
+  const sats = Math.floor(Number(($('boostAmt') as HTMLInputElement).value));
+  if (!(sats > 0)) return;
+  const box = $('handoff');
+  box.classList.remove('hidden');
+  box.replaceChildren(el('p', { className: 'small muted', textContent: 'Preparing…' }));
+  const msg = ($('boostMsg') as HTMLInputElement).value.trim() || undefined;
+  const { items, skipped } = await handoffBoost(block, sats, msg);
+  box.replaceChildren(
+    ...items.map((h) => {
+      const card = el('div', { className: 'item' }, el('b', { textContent: `${h.sats} sat → ${h.name}` }),
+        el('div', { className: 'small muted', textContent: h.kind === 'lnaddress' ? 'Lightning invoice' : 'Cashu ecash request (NUT-18)' }));
+      if (h.error || !h.code) {
+        card.append(el('div', { className: 'small err', textContent: h.error ?? 'nothing to pay' }));
+        return card;
+      }
+      const qr = el('a', { className: 'qr', href: h.uri, title: 'Open in your wallet' });
+      // uqr draws paths only, from a code we built (invoice from the recipient's server, checked for its amount)
+      qr.innerHTML = renderSVG(h.kind === 'lnaddress' ? h.code.toUpperCase() : h.code, { border: 2 });
+      const copy = el('button', { type: 'button', className: 'link', textContent: 'Copy' });
+      copy.onclick = () => navigator.clipboard?.writeText(h.code!).then(() => (copy.textContent = 'Copied'));
+      card.append(qr, copy);
+      return card;
+    }),
+    ...(skipped.length ? [el('p', { className: 'small muted', textContent: `Keysend only, skipped: ${skipped.join(', ')}` })] : []),
+    el('p', { className: 'small muted', textContent: 'Your wallet confirms each payment; this page cannot see them. The message rides along with Lightning invoices.' }),
+  );
 };
 
 function addHistory(s: Settlement) {

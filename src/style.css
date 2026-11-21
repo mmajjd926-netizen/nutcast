@@ -102,3 +102,9 @@ footer { text-align: center; padding: 1.5rem; }
 @media (max-width: 560px) { .brand { font-size: 1.2rem; } .top nav { gap: .35rem; } .top nav .link { font-size: .9rem; } }
 #inList li { grid-template-columns: 7.5rem 1fr auto; }
 #otherList li { grid-template-columns: 1fr auto auto; }
+
+.handoff { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: .8rem; margin-top: .6rem; }
+.handoff .item { border: 1px solid var(--line, #333); border-radius: 8px; padding: .5rem; text-align: center; }
+.handoff .item .qr { width: 100%; margin: .4rem 0; }
+.handoff .item .err { color: #e66; }
+.handoff p { grid-column: 1 / -1; margin: 0; }

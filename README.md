@@ -80,6 +80,10 @@ Episode 2 of the demo show uses such a block. Episode 1 uses a classic Lightning
 - Streaming counts only real listening: the media clock while playing, no seeks, no jumps; per-recipient
   accrual in millisats; session **budget** that caps what is really paid (unreachable shares do not eat it).
 - Boosts split the same way and report each recipient's result, fee included.
+- **Boost from your own wallet, nothing held by the page:** one QR per recipient, a bolt11 invoice for each Lightning address
+  (the message as LUD-12 comment) and the recipient's own NUT-18 request with the share filled in as its amount.
+  Any Lightning or Cashu wallet pays them; the app never touches a token. This is how an app that does not want to
+  hold ecash can still pay `type="cashu"` recipients today (see [the discussion in podcast-namespace](https://github.com/Podcastindex-org/podcast-namespace/discussions/798)).
 - Podcaster inbox: finds NIP-17 gift wraps for the key, checks the seal signature and that rumor and seal share the
   sender, reads the NUT-18 payload and receives it; a failed receive (mint offline) is retried next time, spent proofs are not.
 - Several mints: ecash is received at the mint the listener paid from, so the wallet lists every mint it holds sats at
