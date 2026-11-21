@@ -204,6 +204,17 @@ export class EcashWallet {
     });
   }
 
+  // ---- NIP-61: ecash locked to someone else's key ----
+  /** Proofs worth `amount` locked to `pubkey` (NUT-11), fees for spending them included; our change stays here. */
+  sendLocked(amount: number, pubkey: string): Promise<Proof[]> {
+    return this.exclusive(async () => {
+      await this.load();
+      const { keep, send } = await this.wallet.ops.send(amount, this.proofs()).asP2PK({ pubkey }).includeFees(true).run();
+      this.save(keep);
+      return send;
+    });
+  }
+
   /** Put proofs back (for example when delivering a payment failed and the token was never seen by anyone). */
   restore(proofs: Proof[]) {
     this.save([...this.proofs(), ...proofs]);

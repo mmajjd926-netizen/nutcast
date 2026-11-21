@@ -6,6 +6,8 @@ import { boost, Streamer, type Settlement } from './core/stream';
 import { handoffBoost } from './core/handoff';
 import { chooseBlock, parseFeed, payable, splitAmount, type Episode, type Feed, type ValueBlock } from './core/value';
 import { DEMO_MINT, EcashWallet, type Store } from './core/wallet';
+import { fetchNutzapInfo, npubHex, nutzapEvent, publishNutzap, sameMint, type NutzapInfo } from './core/nutzap';
+import type { Event as NostrEvent } from 'nostr-tools';
 import { extensionSigner, fetchPayments, localSigner, newLocalKey, type Signer } from './core/inbox';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -21,6 +23,7 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLEl
 // ---------- wallet ----------
 let mintUrl = localStorage.getItem('nutcast:mint') ?? DEMO_MINT;
 let wallet = new EcashWallet(mintUrl, store);
+let nz: NutzapInfo | undefined; // the open show's NIP-61 settings, if it takes nutzaps
 let payer = walletPayer(wallet);
 
 /** Every mint this browser holds ecash at (the inbox receives at the payer's mint, so there can be several). */
@@ -68,6 +71,7 @@ function setMint(url: string) {
   $('invoiceBox').classList.add('hidden');
   $('topupState').textContent = '';
   refreshBalance();
+  nzExplain();
   if (wallet.pendingTopUps().length) pollTopUps();
 }
 
@@ -186,7 +190,87 @@ function openFeed(xml: string) {
     list.append(li);
   });
   if (feed.episodes[0]) select(feed.episodes[0]);
+  loadNutzap(feed);
 }
+
+// ---------- NIP-61 nutzaps to the show's npub (<podcast:txt purpose="nostr">) ----------
+async function loadNutzap(f: Feed) {
+  nz = undefined;
+  $('nzRow').classList.add('hidden');
+  const pk = npubHex(f.nostr);
+  if (!pk) return;
+  try {
+    const info = await fetchNutzapInfo(pk);
+    if (!info || feed !== f) return;
+    nz = info;
+    $('nzRow').classList.remove('hidden');
+    nzExplain();
+  } catch (e) {
+    console.warn('nutzap info', e);
+  }
+}
+function nzExplain() {
+  if (!nz) return;
+  const ok = nz.mints.some((m) => sameMint(m, mintUrl));
+  ($('nzBtn') as HTMLButtonElement).disabled = !ok;
+  $('nzState').textContent = ok
+    ? `Paid from your wallet at ${new URL(mintUrl).host}, the boost amount and message above.`
+    : `The show accepts ecash from ${nz.mints.map((m) => new URL(m).host).join(', ')}. Your wallet is at ${new URL(mintUrl).host}; switch to one of those mints to nutzap.`;
+}
+// Locked proofs cannot come back to us, so an event no relay took is kept and sent again later.
+const NZ_PENDING = 'nutcast:nutzapsPending';
+async function retryNutzaps() {
+  const pending: { info: NutzapInfo; ev: NostrEvent }[] = JSON.parse(localStorage.getItem(NZ_PENDING) ?? '[]');
+  if (!pending.length) return;
+  const left = [];
+  for (const p of pending) {
+    try {
+      await publishNutzap(p.info, p.ev);
+    } catch {
+      left.push(p);
+    }
+  }
+  localStorage.setItem(NZ_PENDING, JSON.stringify(left));
+}
+$('nzBtn').onclick = async () => {
+  if (!nz || !feed) return;
+  const info = nz;
+  const sats = Math.floor(Number(($('boostAmt') as HTMLInputElement).value));
+  if (!(sats > 0)) return;
+  const msg = ($('boostMsg') as HTMLInputElement).value.trim();
+  const who = `${feed.title} (nutzap)`;
+  if (sats > wallet.balance()) {
+    addHistory({ at: Date.now(), recipient: who, address: '', sats, fee: 0, ok: false, error: 'Not enough ecash: top up your wallet first.', kind: 'boost' });
+    return;
+  }
+  const btn = $('nzBtn') as HTMLButtonElement;
+  btn.disabled = true;
+  $('nzState').textContent = 'Locking ecash to the show\'s key…';
+  const before = wallet.balance();
+  try {
+    const proofs = await wallet.sendLocked(sats, info.p2pk);
+    const ev = nutzapEvent(info, mintUrl, proofs, msg);
+    const fee = Math.max(0, before - wallet.balance() - sats);
+    try {
+      const ok = await publishNutzap(info, ev);
+      addHistory({ at: Date.now(), recipient: who, address: info.relays[0] ?? '', sats, fee, ok: true, kind: 'boost' });
+      $('nzState').textContent = `Sent: nutzap ${ev.id.slice(0, 8)}… accepted by ${ok.length} relay(s).`;
+    } catch (e) {
+      const pending = JSON.parse(localStorage.getItem(NZ_PENDING) ?? '[]');
+      pending.push({ info, ev });
+      localStorage.setItem(NZ_PENDING, JSON.stringify(pending));
+      addHistory({ at: Date.now(), recipient: who, address: '', sats, fee, ok: false, error: 'no relay took it yet; Nutcast will send it again', kind: 'boost' });
+      $('nzState').textContent = (e as Error).message;
+    }
+  } catch (e) {
+    addHistory({ at: Date.now(), recipient: who, address: '', sats, fee: 0, ok: false, error: (e as Error).message, kind: 'boost' });
+    $('nzState').textContent = (e as Error).message;
+  } finally {
+    btn.disabled = !info.mints.some((m) => sameMint(m, mintUrl));
+    refreshBalance();
+  }
+};
+retryNutzaps();
 
 async function loadUrl(url: string) {
   try {

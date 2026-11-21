@@ -88,6 +88,14 @@ Episode 2 of the demo show uses such a block. Episode 1 uses a classic Lightning
   sender, reads the NUT-18 payload and receives it; a failed receive (mint offline) is retried next time, spent proofs are not.
 - Several mints: ecash is received at the mint the listener paid from, so the wallet lists every mint it holds sats at
   and switches to one in a click. Each mint keeps its own proofs and its own pending top-ups.
+- **Nutzaps (NIP-61)** for shows that name their Nostr identity with `<podcast:txt purpose="nostr">npub…</podcast:txt>`
+  (Nodesignal does). Nutcast reads the npub's kind 10019, locks the boost to the key published there (not the Nostr key;
+  an x-only key gets `02`), keeps the DLEQ proofs, and publishes a kind 9321 to the show's own relays. The wallet must be
+  at one of the show's mints; otherwise Nutcast says which ones. Locked proofs can't come back, so an event no relay
+  accepted is kept and sent again later. Checked end to end on the test mint: the demo show's 10019 lists testnut, the
+  nutzap lands on its relays, and the show's key redeems it (and nothing else can).
+
+  <img src="shots/nutzap.png" width="560" alt="Nutzap the show">
 - **Works with cashu.me** (checked 2026-11-21): a podcaster request from Nutcast, with 21 sat filled in, pasted into
   [cashu.me](https://wallet.cashu.me) is recognised as "Payment request via Nostr"; cashu.me sends it, and the
   Nutcast inbox finds the gift wrap and receives the ecash (21 sat sent, 20 sat after the test mint's 1 sat input fee).
@@ -110,6 +118,7 @@ TypeScript, Vite, [`@cashu/cashu-ts`](https://github.com/cashubtc/cashu-ts) 4.x,
 | `inbox.ts` | the receiving side: open gift wraps (NIP-07 or local key), read ecash payments |
 | `stream.ts` | accrual, budget, batched settlement, boosts |
 | `payer.ts` | glue: Lightning addresses via melt, payment requests via ecash |
+| `nutzap.ts` | NIP-61: the show's kind 10019, proofs locked to its key, kind 9321 events |
 
 ```bash
 npm install
@@ -118,7 +127,7 @@ NUTCAST_LIVE=1 npx vitest run              # + wallet against testnut.cashu.spac
 npm run dev
 ```
 
-`tools/e2e.mjs` and `tools/e2e-stream.mjs` drive the built site in headless Chromium: demo feed → top-up → boost
+`tools/e2e.mjs`, `tools/e2e-stream.mjs` and `tools/e2e-nutzap.mjs` drive the built site in headless Chromium: demo feed → top-up → boost
 to a Lightning address → ecash boost over Nostr → the podcaster's inbox receives it → real playback with streaming on.
 
 ## Limits, honestly

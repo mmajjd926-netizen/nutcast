@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:podcast="https://podcastindex.org/namespace/1.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
 <channel>
+    <podcast:txt purpose="nostr">npub12mqvl5z2ek0xrn3448ueyvm9qxzl53wj7zcv2r47yv2wlk7h54xsf9w6le</podcast:txt>
   <title>The Tale of Frisky Squirrel (Nutcast demo)</title>
   <itunes:author>Arthur Scott Bailey, read by LibriVox volunteers</itunes:author>
   <link>https://librivox.org/</link>

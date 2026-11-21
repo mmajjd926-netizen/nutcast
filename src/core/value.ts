@@ -45,6 +45,8 @@ export interface Feed {
   link?: string;
   value: ValueBlock[]; // channel level
   episodes: Episode[];
+  /** <podcast:txt purpose="nostr">: the show's Nostr identity (npub), used for NIP-61 nutzaps. */
+  nostr?: string;
 }
 
 const NS = 'https://podcastindex.org/namespace/1.0';
@@ -140,6 +142,7 @@ export function parseFeed(xml: string): Feed {
     link: text(child(channel, 'link')),
     value: chanValue,
     episodes: [],
+    nostr: text(children(channel, 'txt').find((t) => isPodcastNs(t) && t.getAttribute('purpose')?.toLowerCase() === 'nostr')),
   };
   for (const item of children(channel, 'item')) {
     const enc = child(item, 'enclosure');

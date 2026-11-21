@@ -1,0 +1,30 @@
+// Headless: demo feed (its npub publishes kind 10019 with testnut), top up on testnut, nutzap the show.
+// Usage: node tools/e2e-nutzap.mjs [url]  -> prints the nutzap event id; check it on a relay.
+import { chromium } from 'playwright';
+const url = process.argv[2] ?? 'http://127.0.0.1:4173/';
+const b = await chromium.launch();
+const p = await b.newPage({ viewport: { width: 1280, height: 1100 } });
+const logs = [];
+p.on('console', (m) => m.type() !== 'debug' && logs.push(m.type() + ': ' + m.text()));
+p.on('pageerror', (e) => logs.push('pageerror: ' + e.message));
+await p.goto(url);
+await p.click('#demoBtn');
+await p.waitForSelector('#episodes li', { timeout: 15000 });
+await p.waitForSelector('#nzRow:not(.hidden)', { timeout: 20000 });
+console.log('nutzap row:', (await p.textContent('#nzState')).trim());
+await p.click('#walletBtn');
+await p.fill('#topupAmt', '100');
+await p.click('#topupBtn');
+await p.waitForFunction(() => document.getElementById('balance').textContent !== '0', null, { timeout: 30000 });
+await p.click('button[value=close]');
+console.log('balance:', await p.textContent('#balance'));
+await p.fill('#boostAmt', '21');
+await p.fill('#boostMsg', 'Nutzap from Nutcast');
+await p.click('#nzBtn');
+await p.waitForFunction(() => /Sent|relay|rror|enough/.test(document.getElementById('nzState').textContent), null, { timeout: 30000 }).catch(() => console.log('TIMEOUT'));
+console.log('state:', await p.textContent('#nzState'));
+console.log('history:', (await p.$$eval('#history li', (l) => l.map((x) => x.innerText.replace(/\s+/g, ' ')))).join(' | '));
+console.log('balance after:', await p.textContent('#balance'));
+await p.locator('#nzRow').screenshot({ path: 'shots/nutzap.png' });
+console.log(logs.slice(0, 10).join('\n'));
+await b.close();
