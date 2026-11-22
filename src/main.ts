@@ -2,11 +2,11 @@ import { PaymentRequest, PaymentRequestTransportType } from '@cashu/cashu-ts';
 import { nip19 } from 'nostr-tools';
 import { renderSVG } from 'uqr';
 import { walletPayer } from './core/payer';
-import { boost, Streamer, type Settlement } from './core/stream';
+import { boost, Streamer, type Payer, type Settlement } from './core/stream';
 import { handoffBoost } from './core/handoff';
 import { chooseBlock, parseFeed, payable, splitAmount, type Episode, type Feed, type ValueBlock } from './core/value';
 import { DEMO_MINT, EcashWallet, type Store } from './core/wallet';
-import { fetchNutzapInfo, fetchNutzaps, newNutzapKey, npubHex, nutzapEvent, nutzapInfoTemplate, publishNutzap, publishSigned, sameMint, type NutzapInfo } from './core/nutzap';
+import { fetchNutzapInfo, fetchNutzaps, newNutzapKey, npubHex, nutzapEvent, nutzapInfoTemplate, podcastTags, publishNutzap, publishSigned, sameMint, xOnly, type NutzapInfo } from './core/nutzap';
 import type { Event as NostrEvent } from 'nostr-tools';
 import { extensionSigner, fetchPayments, localSigner, newLocalKey, type Signer } from './core/inbox';
 import { fetchRedeemed, fetchWallet, redeemedTemplate, proofsTotal, signAndPublish, tokenTemplate, walletTemplate, type Nip60Wallet } from './core/nip60';
@@ -25,7 +25,7 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLEl
 let mintUrl = localStorage.getItem('nutcast:mint') ?? DEMO_MINT;
 let wallet = new EcashWallet(mintUrl, store);
 let nz: NutzapInfo | undefined; // the open show's NIP-61 settings, if it takes nutzaps
-let payer = walletPayer(wallet);
+let payer = withNutzaps(walletPayer(wallet));
 
 /** Every mint this browser holds ecash at (the inbox receives at the payer's mint, so there can be several). */
 function mintBalances(): { mint: string; sats: number }[] {
@@ -67,7 +67,7 @@ function setMint(url: string) {
   mintUrl = url;
   localStorage.setItem('nutcast:mint', mintUrl);
   wallet = new EcashWallet(mintUrl, store);
-  payer = walletPayer(wallet);
+  payer = withNutzaps(walletPayer(wallet));
   // an invoice on screen belongs to the previous mint; that mint's unpaid top-ups wait until it is chosen again
   $('invoiceBox').classList.add('hidden');
   $('topupState').textContent = '';
@@ -198,6 +198,7 @@ function openFeed(xml: string) {
 async function loadNutzap(f: Feed) {
   nz = undefined;
   $('nzRow').classList.add('hidden');
+  $('streamNzRow').classList.add('hidden');
   const pk = npubHex(f.nostr);
   if (!pk) return;
   try {
@@ -214,10 +215,44 @@ function nzExplain() {
   if (!nz) return;
   const ok = nz.mints.some((m) => sameMint(m, mintUrl));
   ($('nzBtn') as HTMLButtonElement).disabled = !ok;
+  $('streamNzRow').classList.remove('hidden');
+  ($('streamNz') as HTMLInputElement).disabled = !ok;
+  if (!ok) ($('streamNz') as HTMLInputElement).checked = false;
+  $('streamNzNote').textContent = ok ? '' : `(needs ecash from ${nz.mints.map((m) => new URL(m).host).join(', ')})`;
   $('nzState').textContent = ok
     ? `Paid from your wallet at ${new URL(mintUrl).host}, the boost amount and message above.`
     : `The show accepts ecash from ${nz.mints.map((m) => new URL(m).host).join(', ')}. Your wallet is at ${new URL(mintUrl).host}; switch to one of those mints to nutzap.`;
 }
+/** Lock `sats` to the show's key and publish the nutzap, tagged with the show and episode (NIP-73). */
+async function sendNutzap(info: NutzapInfo, sats: number, comment: string): Promise<{ fee: number; id: string; relays: number }> {
+  const before = wallet.balance();
+  const proofs = await wallet.sendLocked(sats, info.p2pk);
+  const ev = nutzapEvent(info, mintUrl, proofs, comment, undefined, podcastTags(feed?.guid, episode?.guid));
+  const fee = Math.max(0, before - wallet.balance() - sats);
+  try {
+    const ok = await publishNutzap(info, ev);
+    return { fee, id: ev.id, relays: ok.length };
+  } catch {
+    // the ecash is locked to the show already: keep the event and send it again, never pay twice
+    const pending = JSON.parse(localStorage.getItem(NZ_PENDING) ?? '[]');
+    pending.push({ info, ev });
+    localStorage.setItem(NZ_PENDING, JSON.stringify(pending));
+    return { fee, id: ev.id, relays: 0 };
+  }
+}
+
+/** The streamer's payer, plus nutzaps to the open show. */
+function withNutzaps(p: Payer): Payer {
+  return {
+    ...p,
+    async payNutzap(pubkey, sats, comment) {
+      if (!nz || nz.pubkey !== pubkey) throw new Error('The show\'s nutzap settings are not loaded.');
+      const r = await sendNutzap(nz, sats, comment ?? '');
+      return { fee: r.fee };
+    },
+  };
+}
+
 // Locked proofs cannot come back to us, so an event no relay took is kept and sent again later.
 const NZ_PENDING = 'nutcast:nutzapsPending';
 async function retryNutzaps() {
@@ -247,21 +282,14 @@ $('nzBtn').onclick = async () => {
   const btn = $('nzBtn') as HTMLButtonElement;
   btn.disabled = true;
   $('nzState').textContent = 'Locking ecash to the show\'s key…';
-  const before = wallet.balance();
   try {
-    const proofs = await wallet.sendLocked(sats, info.p2pk);
-    const ev = nutzapEvent(info, mintUrl, proofs, msg);
-    const fee = Math.max(0, before - wallet.balance() - sats);
-    try {
-      const ok = await publishNutzap(info, ev);
-      addHistory({ at: Date.now(), recipient: who, address: info.relays[0] ?? '', sats, fee, ok: true, kind: 'boost' });
-      $('nzState').textContent = `Sent: nutzap ${ev.id.slice(0, 8)}… accepted by ${ok.length} relay(s).`;
-    } catch (e) {
-      const pending = JSON.parse(localStorage.getItem(NZ_PENDING) ?? '[]');
-      pending.push({ info, ev });
-      localStorage.setItem(NZ_PENDING, JSON.stringify(pending));
-      addHistory({ at: Date.now(), recipient: who, address: '', sats, fee, ok: false, error: 'no relay took it yet; Nutcast will send it again', kind: 'boost' });
-      $('nzState').textContent = (e as Error).message;
+    const r = await sendNutzap(info, sats, msg);
+    if (r.relays) {
+      addHistory({ at: Date.now(), recipient: who, address: info.relays[0] ?? '', sats, fee: r.fee, ok: true, kind: 'boost' });
+      $('nzState').textContent = `Sent: nutzap ${r.id.slice(0, 8)}… accepted by ${r.relays} relay(s).`;
+    } else {
+      addHistory({ at: Date.now(), recipient: who, address: '', sats, fee: r.fee, ok: false, error: 'no relay took it yet; Nutcast will send it again', kind: 'boost' });
+      $('nzState').textContent = 'No relay accepted the event yet.';
     }
   } catch (e) {
     addHistory({ at: Date.now(), recipient: who, address: '', sats, fee: 0, ok: false, error: (e as Error).message, kind: 'boost' });
@@ -359,6 +387,13 @@ $('rate').oninput = () => {
 };
 $('budget').oninput = readOpts;
 
+/** What streaming pays: the episode's value split, or the show's Nostr wallet when the listener chose nutzaps. */
+function streamBlock(b: ValueBlock): ValueBlock {
+  const on = ($('streamNz') as HTMLInputElement).checked && nz && nz.mints.some((m) => sameMint(m, mintUrl));
+  if (!on || !nz || !feed) return b;
+  return { type: 'cashu', method: 'nutzap', recipients: [{ name: `${feed.title} (nutzap)`, kind: 'nutzap', address: nz.pubkey, split: 100, fee: false }] };
+}
+
 let accrued = 0;
 let last: number | undefined;
 const audio = $('audio') as HTMLAudioElement;
@@ -370,7 +405,7 @@ audio.addEventListener('timeupdate', () => {
   if (on && block && !audio.paused && last !== undefined) {
     const dt = t - last;
     // only real listening: no seeks, no jumps; playback speed counts as media time
-    if (dt > 0 && dt <= 2) accrued += streamer.accrue(dt, block) / 1000;
+    if (dt > 0 && dt <= 2) accrued += streamer.accrue(dt, streamBlock(block)) / 1000;
   }
   last = t;
   renderStats();
@@ -526,8 +561,8 @@ async function showNutzapSetup(pk: string) {
   const k = nzKey();
   const at = myNz ? myNz.mints.map(host).join(', ') : '';
   if (!myNz) st.textContent = 'You do not accept nutzaps yet.' + (nip60 ? ' You have a NIP-60 wallet: nutzaps will be locked to its key, so that wallet and Nutcast can both redeem them.' : '');
-  else if (nip60 && myNz.p2pk === nip60.pub) st.textContent = `You accept nutzaps at ${at}, locked to your NIP-60 wallet key. Nutcast redeems them too and marks them redeemed (kind 7376) for your other wallets.`;
-  else if (k && myNz.p2pk === k.pub) st.textContent = `You accept nutzaps at ${at}, locked to the key kept here.` + (nip60 ? ' Your NIP-60 wallet uses another key; publish again to switch to it.' : '');
+  else if (nip60 && xOnly(myNz.p2pk) === xOnly(nip60.pub)) st.textContent = `You accept nutzaps at ${at}, locked to your NIP-60 wallet key. Nutcast redeems them too and marks them redeemed (kind 7376) for your other wallets.`;
+  else if (k && xOnly(myNz.p2pk) === xOnly(k.pub)) st.textContent = `You accept nutzaps at ${at}, locked to the key kept here.` + (nip60 ? ' Your NIP-60 wallet uses another key; publish again to switch to it.' : '');
   else st.textContent = `You accept nutzaps already, locked to a key another wallet holds (${myNz.p2pk.slice(0, 10)}…). Redeem them there, or publish again to have new ones come here.`;
   st.textContent += note;
 }
@@ -537,7 +572,7 @@ $('nzAccept').onclick = async () => {
   const btn = $('nzAccept') as HTMLButtonElement;
   const k = nzKey();
   const current = nip60?.pub ?? k?.pub;
-  if (myNz && myNz.p2pk !== current && !confirm('Your current kind 10019 locks nutzaps to a key held by another wallet. Replace it? Nutzaps already sent stay redeemable there.')) return;
+  if (myNz && (!current || xOnly(myNz.p2pk) !== xOnly(current)) && !confirm('Your current kind 10019 locks nutzaps to a key held by another wallet. Replace it? Nutzaps already sent stay redeemable there.')) return;
   btn.disabled = true;
   try {
     const typed = ($('crMints') as HTMLInputElement).value.split(/\s+/).filter((m) => /^https:\/\//.test(m));
@@ -623,10 +658,11 @@ $('inCheck').onclick = async () => {
     const me = await signer.getPublicKey();
     const zaps = await fetchNutzaps(me, relays.length ? relays : undefined).catch(() => []);
     // keys that can unlock nutzaps: the one kept here and the NIP-60 wallet's
+    // by x coordinate: wallets publish the same key as 02… or 03… (applesauce always writes 02), and Schnorr ignores the parity
     const keys = new Map<string, string>();
     const k = nzKey();
-    if (k) keys.set(k.pub, k.sk);
-    if (nip60) keys.set(nip60.pub, nip60.privkey);
+    if (k) keys.set(xOnly(k.pub), k.sk);
+    if (nip60) keys.set(xOnly(nip60.pub), nip60.privkey);
     // nutzaps another NIP-60 wallet (or Nutcast earlier) already marked redeemed
     const redeemed = zaps.length ? await fetchRedeemed(me, relays).catch(() => new Set<string>()) : new Set<string>();
     const toNostr = ($('nzToNostr') as HTMLInputElement).checked;
@@ -634,7 +670,7 @@ $('inCheck').onclick = async () => {
     for (const z of zaps) {
       let status: string;
       let cls = 'ok';
-      const lock = z.lockedTo.find((p) => keys.has(p));
+      const lock = z.lockedTo.map(xOnly).find((p) => keys.has(p));
       if (done.has(z.id)) (status = 'received earlier'), (cls = 'old');
       else if (redeemed.has(z.id)) (status = 'redeemed by your Nostr wallet'), (cls = 'old'), done.add(z.id);
       else if (!lock) (status = 'locked to another key'), (cls = 'old');

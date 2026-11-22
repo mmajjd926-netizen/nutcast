@@ -31,6 +31,26 @@ function fakePayer(fail = new Set<string>()) {
 }
 
 describe('Streamer', () => {
+  it('streams to a nutzap recipient in batches of 10 sat, and refuses a payer that cannot nutzap', async () => {
+    const nzBlock: ValueBlock = { type: 'cashu', method: 'nutzap', recipients: [{ name: 'Show (nutzap)', kind: 'nutzap', address: 'ab'.repeat(32), split: 100, fee: false }] };
+    const st = new Streamer({ satsPerMinute: 6, budgetSats: 100 });
+    const zapped: Array<[string, number, string | undefined]> = [];
+    const { payer } = fakePayer();
+    const nzPayer: Payer = { ...payer, async payNutzap(pk, s, c) { zapped.push([pk, s, c]); return { fee: 0 }; } };
+    st.accrue(60, nzBlock); // 6 sat: under the threshold
+    expect(await st.settle(nzPayer, false, 'ep')).toEqual([]);
+    st.accrue(60, nzBlock); // 12 sat
+    const done = await st.settle(nzPayer, false, 'ep');
+    expect(done.map((d) => [d.sats, d.ok])).toEqual([[12, true]]);
+    expect(zapped).toEqual([['ab'.repeat(32), 12, 'ep']]);
+    expect(st.owedSats()).toBe(0);
+    st.accrue(10, nzBlock); // 1 sat, flushed to a payer without payNutzap: fails, stays owed
+    const failed = await st.settle(payer, true);
+    expect(failed[0].ok).toBe(false);
+    expect(failed[0].error).toMatch(/nutzap/);
+    expect(st.owedSats()).toBe(1);
+  });
+
   it('accrues by the split, drops unreachable shares, pays whole sats past thresholds', async () => {
     const st = new Streamer({ satsPerMinute: 10, budgetSats: 1000 });
     st.accrue(60, block); // 10 sats: 5 host (dropped), 3 cohost, 2 guest

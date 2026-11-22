@@ -15,6 +15,8 @@ export interface Payer {
   payLnAddress(address: string, sats: number, comment?: string): Promise<{ fee: number }>;
   /** Pay `sats` of ecash to a NUT-18 payment request. */
   payRequest(request: string, sats: number, memo?: string): Promise<{ fee: number }>;
+  /** Nutzap `sats` to a Nostr pubkey (NIP-61). Optional: a payer without it cannot reach nutzap recipients. */
+  payNutzap?(pubkey: string, sats: number, comment?: string): Promise<{ fee: number }>;
 }
 
 export interface Settlement {
@@ -33,6 +35,7 @@ export interface StreamOptions {
   budgetSats: number;
   lnThresholdSats?: number; // default 21
   requestThresholdSats?: number; // default 1
+  nutzapThresholdSats?: number; // default 10: each nutzap is a public Nostr event, so batch a little
 }
 
 const keyOf = (r: ValueRecipient) => `${r.kind}:${r.address}`;
@@ -47,7 +50,7 @@ export class Streamer {
   private settling?: Promise<Settlement[]>;
 
   constructor(opts: StreamOptions) {
-    this.opts = { lnThresholdSats: 21, requestThresholdSats: 1, ...opts };
+    this.opts = { lnThresholdSats: 21, requestThresholdSats: 1, nutzapThresholdSats: 10, ...opts };
   }
 
   /** Sats accrued and not yet paid. */
@@ -105,11 +108,11 @@ export class Streamer {
     for (const [k, msat] of this.owedMsat) {
       const r = this.recipients.get(k)!;
       const sats = Math.floor(msat / 1000);
-      const threshold = r.kind === 'lnaddress' ? this.opts.lnThresholdSats : this.opts.requestThresholdSats;
+      const threshold = r.kind === 'lnaddress' ? this.opts.lnThresholdSats : r.kind === 'nutzap' ? this.opts.nutzapThresholdSats : this.opts.requestThresholdSats;
       if (sats < 1 || (!flush && sats < threshold)) continue;
       const s: Settlement = { at: Date.now(), recipient: r.name, address: r.address, sats, fee: 0, ok: false, kind: 'stream' };
       try {
-        const { fee } = r.kind === 'lnaddress' ? await payer.payLnAddress(r.address, sats, comment) : await payer.payRequest(r.address, sats, comment);
+        const { fee } = await payOne(payer, r, sats, comment);
         s.ok = true;
         s.fee = fee;
         this.owedMsat.set(k, (this.owedMsat.get(k) ?? 0) - sats * 1000);
@@ -122,6 +125,15 @@ export class Streamer {
     }
     return out;
   }
+}
+
+function payOne(payer: Payer, r: ValueRecipient, sats: number, comment?: string): Promise<{ fee: number }> {
+  if (r.kind === 'lnaddress') return payer.payLnAddress(r.address, sats, comment);
+  if (r.kind === 'nutzap') {
+    if (!payer.payNutzap) return Promise.reject(new Error('This wallet cannot send nutzaps.'));
+    return payer.payNutzap(r.address, sats, comment);
+  }
+  return payer.payRequest(r.address, sats, comment);
 }
 
 /** A one-off boost: split `sats` by the block and pay each reachable recipient now. */
@@ -138,7 +150,7 @@ export async function boost(payer: Payer, block: ValueBlock, sats: number, messa
     if (parts[i] < 1) continue;
     const s: Settlement = { at: Date.now(), recipient: r.name, address: r.address, sats: parts[i], fee: 0, ok: false, kind: 'boost' };
     try {
-      const { fee } = r.kind === 'lnaddress' ? await payer.payLnAddress(r.address, parts[i], message) : await payer.payRequest(r.address, parts[i], message);
+      const { fee } = await payOne(payer, r, parts[i], message);
       s.ok = true;
       s.fee = fee;
     } catch (e) {

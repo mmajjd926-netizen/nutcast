@@ -66,6 +66,7 @@
               <label>Budget <input id="budget" type="number" min="0" step="10" value="300" /> sat</label>
             </div>
             <label class="switch"><input id="streamOn" type="checkbox" /> <span>Stream sats while the episode plays</span></label>
+            <label id="streamNzRow" class="switch hidden" title="Each nutzap is ecash locked to the show's key (NIP-61), tagged with the episode (NIP-73). No Lightning, so no routing fees; sent every 10 sat."><input id="streamNz" type="checkbox" /> <span>…as nutzaps to the show's Nostr wallet <span id="streamNzNote" class="muted"></span></span></label>
             <div class="stats">
               <div><b id="stStreamed">0</b><span>accrued</span></div>
               <div><b id="stPaid">0</b><span>paid</span></div>

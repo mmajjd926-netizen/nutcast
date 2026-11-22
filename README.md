@@ -98,6 +98,12 @@ Episode 2 of the demo show uses such a block. Episode 1 uses a classic Lightning
   locked to the `03e88b…` key from its kind 10019).
 
   <img src="shots/nutzap.png" width="560" alt="Nutzap the show">
+- **Stream as nutzaps.** For such a show, "…as nutzaps to the show's Nostr wallet" sends the streamed sats as nutzaps
+  instead of through the value split: no Lightning, so no routing fee or melt reserve, one nutzap per 10 sat streamed.
+  Every nutzap (boosts too) carries NIP-73 tags for the episode and the show — `["i", "podcast:item:guid:<guid>"]`,
+  `["i", "podcast:guid:<guid>"]` with their `k` tags — so a client can list what an episode received, the way
+  Podcasting 2.0 apps list boosts. `tools/e2e-nutzap-stream.mjs` plays the demo episode at 60 sat/min, waits for two
+  nutzaps and reads them back from the relays with their tags.
 - **Take nutzaps as a podcaster.** "For podcasters" → "Accept nutzaps" publishes your kind 10019 (signed by your NIP-07
   extension or a key kept in the browser): your relays, the mints you accept, and a fresh lock key made and kept on the page,
   apart from your Nostr key. "Check for payments" then lists kind 9321 events tagged with you next to the NIP-17 payments and
@@ -120,6 +126,9 @@ Episode 2 of the demo show uses such a block. Episode 1 uses a classic Lightning
   Nutcast → the podcaster signs into Nutcast, which finds the applesauce key and redeems into a 7375 → applesauce decrypts
   that token event (21 sat, UNSPENT at the mint) and sees the nutzap as redeemed → a fresh browser lists it as
   "redeemed by your Nostr wallet".
+  Keys are matched by their x coordinate: applesauce writes the 10019 key as `02…` whatever its parity, and NUT-11's
+  Schnorr signatures ignore it, so a nutzap locked to `02<x>` is redeemed by a key that is really `03<x>`
+  (live test on testnut).
 
   <img src="shots/nip60-inbox.png" width="480" alt="Nutcast redeeming a nutzap into the podcaster's NIP-60 wallet">
 - **Works with cashu.me** (checked 2026-11-21): a podcaster request from Nutcast, with 21 sat filled in, pasted into
@@ -154,7 +163,7 @@ NUTCAST_LIVE=1 npx vitest run              # + wallet against testnut.cashu.spac
 npm run dev
 ```
 
-`tools/e2e.mjs`, `tools/e2e-stream.mjs`, `tools/e2e-nutzap.mjs`, `tools/e2e-nutzap-inbox.mjs` and `tools/e2e-nip60.mjs` drive the built site in headless Chromium: demo feed → top-up → boost
+`tools/e2e.mjs`, `tools/e2e-stream.mjs`, `tools/e2e-nutzap.mjs`, `tools/e2e-nutzap-stream.mjs`, `tools/e2e-nutzap-inbox.mjs` and `tools/e2e-nip60.mjs` drive the built site in headless Chromium: demo feed → top-up → boost
 to a Lightning address → ecash boost over Nostr → the podcaster's inbox receives it → real playback with streaming on.
 
 ## Limits, honestly

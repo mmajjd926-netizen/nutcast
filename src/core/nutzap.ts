@@ -25,6 +25,9 @@ export function lockKey(tag: string): string {
   throw new Error('The nutzap key in kind 10019 is not a public key.');
 }
 
+/** The x coordinate of a key given as 02…/03… or x-only: the part Schnorr signatures (NUT-11) check. */
+export const xOnly = (pub: string) => pub.toLowerCase().slice(-64);
+
 export const sameMint = (a: string, b: string) => a.replace(/\/+$/, '').toLowerCase() === b.replace(/\/+$/, '').toLowerCase();
 
 /** Reads a kind 10019 event. Without a mint or a key there is nothing a payer can do, so that is an error. */
@@ -66,9 +69,20 @@ export async function fetchNutzapInfo(pubkey: string, relays: string[] = FALLBAC
  * Proofs keep their DLEQ (NUT-12) so the recipient can check them without asking the mint.
  * Signed with a fresh key: the nutzap is public, and nothing ties two of them to one listener.
  */
-export function nutzapEvent(info: NutzapInfo, mint: string, proofs: Proof[], comment = '', sk: Uint8Array = generateSecretKey()): Event {
+/**
+ * NIP-73 tags naming what the nutzap is for: the episode (`podcast:item:guid`) and the show (`podcast:guid`),
+ * so a client can show the nutzaps an episode got, the way Podcasting 2.0 apps show boosts.
+ */
+export function podcastTags(showGuid?: string, itemGuid?: string): string[][] {
+  const t: string[][] = [];
+  if (itemGuid) t.push(['i', `podcast:item:guid:${itemGuid}`], ['k', 'podcast:item:guid']);
+  if (showGuid) t.push(['i', `podcast:guid:${showGuid}`], ['k', 'podcast:guid']);
+  return t;
+}
+
+export function nutzapEvent(info: NutzapInfo, mint: string, proofs: Proof[], comment = '', sk: Uint8Array = generateSecretKey(), extraTags: string[][] = []): Event {
   const tags: string[][] = proofs.map((p) => ['proof', JSON.stringify({ id: p.id, amount: Number(p.amount), secret: p.secret, C: p.C, ...(p.dleq ? { dleq: p.dleq } : {}) })]);
-  tags.push(['u', mint], ['p', info.pubkey]);
+  tags.push(['u', mint], ['p', info.pubkey], ...extraTags);
   return finalizeEvent({ kind: 9321, created_at: Math.floor(Date.now() / 1000), content: comment, tags }, sk);
 }
 

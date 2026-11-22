@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Wallet, getEncodedToken } from '@cashu/cashu-ts';
 import { finalizeEvent, generateSecretKey, getPublicKey, verifyEvent } from 'nostr-tools';
-import { lockKey, newNutzapKey, npubHex, nutzapEvent, nutzapInfoTemplate, nutzapPub, parseNutzap, parseNutzapInfo, sameMint } from '../src/core/nutzap';
+import { lockKey, newNutzapKey, podcastTags, npubHex, nutzapEvent, nutzapInfoTemplate, nutzapPub, parseNutzap, parseNutzapInfo, sameMint, xOnly } from '../src/core/nutzap';
 import { parseFeed } from '../src/core/value';
 import { DEMO_MINT, EcashWallet, MemoryStore } from '../src/core/wallet';
 
@@ -35,11 +35,27 @@ describe('nutzaps (NIP-61)', () => {
 
   it('finds the show npub in the feed', () => {
     const xml = `<rss xmlns:podcast="https://podcastindex.org/namespace/1.0"><channel><title>T</title>
+      <podcast:guid>917393e3-1b1e-5cef-ace4-edaa54e1f810</podcast:guid>
       <podcast:txt purpose="sovereigncast">https://pm.example</podcast:txt>
       <podcast:txt purpose="nostr">npub1n0devk3h2l3rx6vmt24a3lz4hsxp7j8rn3x44jkx6daj7j8jzc0q2u02cy</podcast:txt></channel></rss>`;
     const feed = parseFeed(xml);
     expect(npubHex(feed.nostr)).toBe(NODESIGNAL_10019.pubkey);
     expect(npubHex('not a key')).toBeUndefined();
+    expect(feed.guid).toBe('917393e3-1b1e-5cef-ace4-edaa54e1f810');
+  });
+
+  it('tags a nutzap with the episode and the show (NIP-73)', () => {
+    const info = parseNutzapInfo(NODESIGNAL_10019);
+    const tags = podcastTags('917393e3-1b1e-5cef-ace4-edaa54e1f810', 'ep-42');
+    expect(tags).toEqual([
+      ['i', 'podcast:item:guid:ep-42'], ['k', 'podcast:item:guid'],
+      ['i', 'podcast:guid:917393e3-1b1e-5cef-ace4-edaa54e1f810'], ['k', 'podcast:guid'],
+    ]);
+    expect(podcastTags(undefined, undefined)).toEqual([]);
+    const ev = nutzapEvent(info, 'https://m.example/', [{ id: '00ab', amount: 1, secret: 's', C: '02cc' }] as never, '', undefined, tags);
+    expect(verifyEvent(ev)).toBe(true);
+    expect(ev.tags).toContainEqual(['i', 'podcast:item:guid:ep-42']);
+    expect(ev.tags).toContainEqual(['p', info.pubkey]);
   });
 
   it('builds a signed kind 9321 with one proof tag per proof, the mint and the recipient', () => {
@@ -110,5 +126,20 @@ live('nutzap on testnut', () => {
     const b = new EcashWallet(DEMO_MINT, new MemoryStore());
     await expect(b.receiveLocked(z.proofs, newNutzapKey().sk)).rejects.toThrow(); // wrong key
     expect(await b.receiveLocked(z.proofs, k.sk)).toBeGreaterThanOrEqual(20);
+  });
+
+  it('redeems a nutzap locked to 02 + x when the key is really 03 (how applesauce publishes 10019)', async () => {
+    let k = newNutzapKey();
+    while (!k.pub.startsWith('03')) k = newNutzapKey();
+    const as02 = '02' + k.pub.slice(2);
+    expect(xOnly(as02)).toBe(xOnly(k.pub));
+    const a = new EcashWallet(DEMO_MINT, new MemoryStore());
+    const t = await a.createTopUp(30);
+    for (let i = 0; i < 20 && !(await a.claimTopUp(t)); i++) await new Promise((r) => setTimeout(r, 500));
+    const info = { pubkey: getPublicKey(generateSecretKey()), p2pk: as02, mints: [DEMO_MINT], relays: [] };
+    const z = parseNutzap(nutzapEvent(info, DEMO_MINT, await a.sendLocked(10, as02), ''));
+    expect(z.lockedTo).toEqual([as02]);
+    const b = new EcashWallet(DEMO_MINT, new MemoryStore());
+    expect(await b.receiveLocked(z.proofs, k.sk)).toBeGreaterThanOrEqual(9);
   });
 });

@@ -8,7 +8,9 @@
 // A NUT-18 payment request recipient is paid with ecash directly, so there is no mint
 // fee per payment and streaming can settle every minute.
 
-export type RecipientKind = 'node' | 'lnaddress' | 'paymentrequest' | 'unknown';
+// 'nutzap' is never read from a feed: Nutcast makes it for a show that takes NIP-61 nutzaps
+// (address = the show's Nostr pubkey, hex), so streaming can go to the show's own Nostr wallet.
+export type RecipientKind = 'node' | 'lnaddress' | 'paymentrequest' | 'nutzap' | 'unknown';
 
 export interface ValueRecipient {
   name: string;
@@ -47,6 +49,8 @@ export interface Feed {
   episodes: Episode[];
   /** <podcast:txt purpose="nostr">: the show's Nostr identity (npub), used for NIP-61 nutzaps. */
   nostr?: string;
+  /** <podcast:guid>: the show's global id, used for NIP-73 tags on nutzaps. */
+  guid?: string;
 }
 
 const NS = 'https://podcastindex.org/namespace/1.0';
@@ -142,6 +146,7 @@ export function parseFeed(xml: string): Feed {
     link: text(child(channel, 'link')),
     value: chanValue,
     episodes: [],
+    guid: text(children(channel, 'guid').find(isPodcastNs)),
     nostr: text(children(channel, 'txt').find((t) => isPodcastNs(t) && t.getAttribute('purpose')?.toLowerCase() === 'nostr')),
   };
   for (const item of children(channel, 'item')) {
@@ -164,7 +169,7 @@ export function parseFeed(xml: string): Feed {
 
 /** Which recipients a Cashu wallet can reach, and how. */
 export function payable(r: ValueRecipient): boolean {
-  return r.kind === 'lnaddress' || r.kind === 'paymentrequest';
+  return r.kind === 'lnaddress' || r.kind === 'paymentrequest' || r.kind === 'nutzap';
 }
 
 /**

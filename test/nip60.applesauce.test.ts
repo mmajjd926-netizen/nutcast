@@ -21,7 +21,7 @@ import {
 } from 'applesauce-wallet/helpers';
 import { localSigner } from '../src/core/inbox';
 import { parseWalletContent, redeemedIds, redeemedTemplate, tokenTemplate, walletTemplate } from '../src/core/nip60';
-import { newNutzapKey, nutzapEvent, nutzapInfoTemplate, nutzapPub, parseNutzap, parseNutzapInfo } from '../src/core/nutzap';
+import { newNutzapKey, nutzapEvent, nutzapInfoTemplate, nutzapPub, parseNutzap, parseNutzapInfo, xOnly } from '../src/core/nutzap';
 
 const hex = (b: Uint8Array) => [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
 const bytes = (h: string) => Uint8Array.from(h.match(/../g)!.map((x) => parseInt(x, 16)));
@@ -104,7 +104,8 @@ describe('NIP-60 with applesauce-wallet', () => {
     // applesauce's 10019 -> Nutcast
     const theirInfo = (await NutzapInfoFactory.create().setMints([{ url: MINT, units: ['sat'] }]).setRelays(['wss://nos.lol']).setPubkey(bytes(k.sk)).sign(theirs)) as Event;
     const parsed = parseNutzapInfo(theirInfo);
-    expect(parsed.p2pk).toBe(nutzapPub(k.sk));
+    // applesauce writes the key as 02 + x whatever its parity: compare the x coordinate
+    expect(xOnly(parsed.p2pk)).toBe(xOnly(nutzapPub(k.sk)));
     expect(parsed.mints).toEqual([MINT]);
     // Nutcast's nutzap -> applesauce: it finds the lock key among the wallet's keys
     const proofs = [lockedProof(k.pub, 16), lockedProof(k.pub, 4)];
