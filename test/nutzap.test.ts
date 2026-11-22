@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Wallet, getEncodedToken } from '@cashu/cashu-ts';
-import { generateSecretKey, getPublicKey, verifyEvent } from 'nostr-tools';
-import { lockKey, npubHex, nutzapEvent, parseNutzapInfo, sameMint } from '../src/core/nutzap';
+import { finalizeEvent, generateSecretKey, getPublicKey, verifyEvent } from 'nostr-tools';
+import { lockKey, newNutzapKey, npubHex, nutzapEvent, nutzapInfoTemplate, nutzapPub, parseNutzap, parseNutzapInfo, sameMint } from '../src/core/nutzap';
 import { parseFeed } from '../src/core/value';
 import { DEMO_MINT, EcashWallet, MemoryStore } from '../src/core/wallet';
 
@@ -54,6 +54,28 @@ describe('nutzaps (NIP-61)', () => {
     expect(ev.tags).toContainEqual(['u', 'https://mint.minibits.cash/Bitcoin']);
     expect(ev.tags).toContainEqual(['p', info.pubkey]);
   });
+
+  it('publishes a 10019 that payers read back, with a lock key that is not the Nostr key', () => {
+    const nostrSk = generateSecretKey();
+    const k = newNutzapKey();
+    expect(k.pub).toMatch(/^0[23][0-9a-f]{64}$/);
+    expect(nutzapPub(k.sk)).toBe(k.pub);
+    const ev = finalizeEvent(nutzapInfoTemplate(k.pub, ['https://mint.minibits.cash/Bitcoin/'], ['wss://nos.lol']), nostrSk);
+    const info = parseNutzapInfo(ev);
+    expect(info).toEqual({ pubkey: getPublicKey(nostrSk), p2pk: k.pub, mints: ['https://mint.minibits.cash/Bitcoin'], relays: ['wss://nos.lol'] });
+    expect(info.p2pk.slice(2)).not.toBe(info.pubkey);
+    expect(() => nutzapInfoTemplate(k.pub, [], [])).toThrow(/mint/);
+  });
+
+  it('reads an incoming nutzap: amount, mint, comment and the key it is locked to', () => {
+    const k = newNutzapKey();
+    const info = { pubkey: 'ab'.repeat(32), p2pk: k.pub, mints: ['https://m.example'], relays: [] };
+    const secret = JSON.stringify(['P2PK', { nonce: '00', data: k.pub, tags: [['sigflag', 'SIG_INPUTS']] }]);
+    const ev = nutzapEvent(info, 'https://m.example/', [{ id: '00ab', amount: 16, secret, C: '02cc' }, { id: '00ab', amount: 4, secret, C: '02dd' }] as never, 'thanks');
+    const z = parseNutzap(ev);
+    expect(z).toMatchObject({ id: ev.id, amount: 20, mint: 'https://m.example', comment: 'thanks', lockedTo: [k.pub] });
+    expect(() => parseNutzap({ ...JSON.parse(JSON.stringify(ev)), content: 'tampered' })).toThrow(/signature/);
+  });
 });
 
 const live = process.env.NUTCAST_LIVE ? describe : describe.skip;
@@ -75,5 +97,18 @@ live('nutzap on testnut', () => {
     await expect(w.receive(token)).rejects.toThrow(); // no key, no money
     const got = await w.ops.receive(token).privkey(Buffer.from(sk).toString('hex')).run();
     expect(got.reduce((s, p) => s + Number(p.amount), 0)).toBeGreaterThan(0);
+  });
+
+  it('the podcaster wallet redeems a nutzap locked to its own 10019 key', async () => {
+    const a = new EcashWallet(DEMO_MINT, new MemoryStore());
+    const t = await a.createTopUp(40);
+    for (let i = 0; i < 20 && !(await a.claimTopUp(t)); i++) await new Promise((r) => setTimeout(r, 500));
+    const k = newNutzapKey(); // compressed, may be 03…
+    const info = { pubkey: getPublicKey(generateSecretKey()), p2pk: k.pub, mints: [DEMO_MINT], relays: [] };
+    const z = parseNutzap(nutzapEvent(info, DEMO_MINT, await a.sendLocked(21, k.pub), 'hi'));
+    expect(z.lockedTo).toEqual([k.pub]);
+    const b = new EcashWallet(DEMO_MINT, new MemoryStore());
+    await expect(b.receiveLocked(z.proofs, newNutzapKey().sk)).rejects.toThrow(); // wrong key
+    expect(await b.receiveLocked(z.proofs, k.sk)).toBeGreaterThanOrEqual(20);
   });
 });

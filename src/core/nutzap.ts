@@ -1,7 +1,8 @@
 // NIP-61 nutzaps: ecash locked to the recipient's P2PK key and published as a kind 9321 event.
 // A show names its Nostr identity with <podcast:txt purpose="nostr">npub…</podcast:txt>; the npub's kind 10019
 // says which mints it accepts, which key to lock to (this is NOT the Nostr key) and where to publish.
-import { SimplePool, finalizeEvent, generateSecretKey, nip19, type Event } from 'nostr-tools';
+import { SimplePool, finalizeEvent, generateSecretKey, nip19, verifyEvent, type Event } from 'nostr-tools';
+import { secp256k1 } from '@noble/curves/secp256k1.js';
 import type { Proof } from '@cashu/cashu-ts';
 import { FALLBACK_RELAYS } from './nostr';
 
@@ -81,6 +82,96 @@ export async function publishNutzap(info: NutzapInfo, ev: Event, timeoutMs = 800
     ),
   );
   const ok = results.filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled').map((r) => r.value);
-  if (!ok.length) throw new Error('No relay of the show accepted the nutzap.');
+  if (!ok.length) throw new Error('No relay accepted the event.');
   return ok;
+}
+
+// ---------- the receiving side: a podcaster who takes nutzaps ----------
+
+/** A fresh key for nutzaps to be locked to. It is NOT the Nostr key: losing it loses the locked sats, so it stays apart. */
+export function newNutzapKey(): { sk: string; pub: string } {
+  const sk = generateSecretKey();
+  const toHex = (b: Uint8Array) => [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
+  return { sk: toHex(sk), pub: toHex(secp256k1.getPublicKey(sk, true)) };
+}
+
+export function nutzapPub(skHex: string): string {
+  const sk = Uint8Array.from(skHex.match(/../g)!.map((h) => parseInt(h, 16)));
+  return [...secp256k1.getPublicKey(sk, true)].map((x) => x.toString(16).padStart(2, '0')).join('');
+}
+
+/** The kind 10019 a podcaster publishes so payers know where and how to send nutzaps. */
+export function nutzapInfoTemplate(p2pk: string, mints: string[], relays: string[]) {
+  if (!mints.length) throw new Error('Name at least one mint you accept.');
+  return {
+    kind: 10019,
+    created_at: Math.floor(Date.now() / 1000),
+    content: '',
+    tags: [...relays.map((r) => ['relay', r]), ...mints.map((m) => ['mint', m.replace(/\/+$/, ''), 'sat']), ['pubkey', lockKey(p2pk)]],
+  };
+}
+
+export interface IncomingNutzap {
+  id: string;
+  at: number;
+  sender: string;
+  mint: string;
+  amount: number;
+  comment: string;
+  proofs: Proof[];
+  /** The P2PK keys the proofs are locked to (normally one). */
+  lockedTo: string[];
+}
+
+/** Read a kind 9321 event. Throws if it carries no proofs or no mint. */
+export function parseNutzap(ev: Event): IncomingNutzap {
+  if (ev.kind !== 9321) throw new Error('not a nutzap');
+  if (!verifyEvent(ev)) throw new Error('bad signature');
+  const mint = ev.tags.find((t) => t[0] === 'u')?.[1];
+  if (!mint || !/^https?:\/\//.test(mint)) throw new Error('nutzap names no mint');
+  const proofs = ev.tags.filter((t) => t[0] === 'proof').map((t) => JSON.parse(t[1]) as Proof);
+  if (!proofs.length) throw new Error('nutzap carries no proofs');
+  const lockedTo = new Set<string>();
+  for (const p of proofs) {
+    try {
+      const s = JSON.parse(p.secret);
+      if (Array.isArray(s) && s[0] === 'P2PK' && typeof s[1]?.data === 'string') lockedTo.add(s[1].data.toLowerCase());
+    } catch {
+      /* not a well-known secret: unlocked ecash */
+    }
+  }
+  return {
+    id: ev.id,
+    at: ev.created_at,
+    sender: ev.pubkey,
+    mint: mint.replace(/\/+$/, ''),
+    amount: proofs.reduce((s, p) => s + Number(p.amount), 0),
+    comment: ev.content,
+    proofs,
+    lockedTo: [...lockedTo],
+  };
+}
+
+/** Nutzaps addressed to `pubkey` (the podcaster's Nostr key) on `relays`, newest first. */
+export async function fetchNutzaps(pubkey: string, relays: string[] = FALLBACK_RELAYS, sinceDays = 30): Promise<IncomingNutzap[]> {
+  pool ??= new SimplePool();
+  const since = Math.floor(Date.now() / 1000) - sinceDays * 86400;
+  const evs = await pool.querySync([...new Set([...relays, ...FALLBACK_RELAYS])], { kinds: [9321], '#p': [pubkey], since }, { maxWait: 6000 });
+  const seen = new Set<string>();
+  const out: IncomingNutzap[] = [];
+  for (const e of evs) {
+    if (seen.has(e.id)) continue;
+    seen.add(e.id);
+    try {
+      out.push(parseNutzap(e));
+    } catch {
+      /* junk */
+    }
+  }
+  return out.sort((a, b) => b.at - a.at);
+}
+
+/** Publish an already signed event (the podcaster's kind 10019) to `relays`. */
+export async function publishSigned(ev: Event, relays: string[], timeoutMs = 8000): Promise<string[]> {
+  return publishNutzap({ pubkey: ev.pubkey, p2pk: '', mints: [], relays }, ev, timeoutMs);
 }

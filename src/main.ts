@@ -6,7 +6,7 @@ import { boost, Streamer, type Settlement } from './core/stream';
 import { handoffBoost } from './core/handoff';
 import { chooseBlock, parseFeed, payable, splitAmount, type Episode, type Feed, type ValueBlock } from './core/value';
 import { DEMO_MINT, EcashWallet, type Store } from './core/wallet';
-import { fetchNutzapInfo, npubHex, nutzapEvent, publishNutzap, sameMint, type NutzapInfo } from './core/nutzap';
+import { fetchNutzapInfo, fetchNutzaps, newNutzapKey, npubHex, nutzapEvent, nutzapInfoTemplate, publishNutzap, publishSigned, sameMint, type NutzapInfo } from './core/nutzap';
 import type { Event as NostrEvent } from 'nostr-tools';
 import { extensionSigner, fetchPayments, localSigner, newLocalKey, type Signer } from './core/inbox';
 
@@ -496,7 +496,53 @@ async function useSigner(sg: Signer, who: string) {
   ($('crNpub') as HTMLInputElement).value = nip19.npubEncode(pk);
   $('inWho').textContent = who;
   ($('inCheck') as HTMLButtonElement).disabled = false;
+  ($('nzAccept') as HTMLButtonElement).disabled = false;
+  showNutzapSetup(pk);
 }
+
+// ---------- nutzaps to the podcaster: our kind 10019 and the key nutzaps are locked to ----------
+const NZ_KEY = 'nutcast:nutzapKey';
+const nzKey = (): { sk: string; pub: string } | undefined => JSON.parse(localStorage.getItem(NZ_KEY) ?? 'null') ?? undefined;
+const inRelays = () => ($('crRelays') as HTMLInputElement).value.split(/\s+/).filter((r) => /^wss?:\/\//.test(r));
+let myNz: NutzapInfo | undefined;
+async function showNutzapSetup(pk: string) {
+  const st = $('nzAcceptState');
+  st.textContent = 'Looking for your kind 10019…';
+  try {
+    myNz = await fetchNutzapInfo(pk, inRelays());
+  } catch (e) {
+    myNz = undefined;
+    st.textContent = `Your kind 10019 is unreadable (${(e as Error).message}).`;
+    return;
+  }
+  const k = nzKey();
+  if (!myNz) st.textContent = 'You do not accept nutzaps yet.';
+  else if (k && myNz.p2pk === k.pub) st.textContent = `You accept nutzaps at ${myNz.mints.map((m) => new URL(m).host).join(', ')}, locked to the key kept here.`;
+  else st.textContent = `You accept nutzaps already, locked to a key another wallet holds (${myNz.p2pk.slice(0, 10)}…). Redeem them there, or publish again to have new ones come here.`;
+}
+$('nzAccept').onclick = async () => {
+  if (!signer) return;
+  const st = $('nzAcceptState');
+  const btn = $('nzAccept') as HTMLButtonElement;
+  const k = nzKey();
+  if (myNz && (!k || myNz.p2pk !== k.pub) && !confirm('Your current kind 10019 locks nutzaps to a key held by another wallet. Replace it? Nutzaps already sent stay redeemable there.')) return;
+  btn.disabled = true;
+  try {
+    const key = k ?? newNutzapKey();
+    if (!k) localStorage.setItem(NZ_KEY, JSON.stringify(key));
+    const typed = ($('crMints') as HTMLInputElement).value.split(/\s+/).filter((m) => /^https:\/\//.test(m));
+    const mints = typed.length ? typed : [mintUrl];
+    const relays = inRelays().length ? inRelays() : undefined;
+    const ev = await signer.signEvent(nutzapInfoTemplate(key.pub, mints, relays ?? ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net']));
+    const ok = await publishSigned(ev, relays ?? ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net']);
+    st.textContent = `Published (accepted by ${ok.length} relay(s)). Nutzaps from ${mints.map((m) => new URL(m).host).join(', ')} now come here.`;
+    myNz = { pubkey: ev.pubkey, p2pk: key.pub, mints, relays: relays ?? [] };
+  } catch (e) {
+    st.textContent = (e as Error).message;
+  } finally {
+    btn.disabled = false;
+  }
+};
 $('inExt').onclick = async () => {
   try {
     await useSigner(extensionSigner((window as unknown as { nostr?: Parameters<typeof extensionSigner>[0] }).nostr), 'Using your Nostr extension. The key never leaves it.');
@@ -546,8 +592,38 @@ $('inCheck').onclick = async () => {
         el('span', { textContent: `${p.amount} sat${p.memo ? ' · ' + p.memo : ''}` }),
         el('span', { textContent: status })));
     }
+    // nutzaps: public kind 9321 events tagged with our Nostr key, ecash locked to our 10019 key
+    const zaps = await fetchNutzaps(await signer.getPublicKey(), relays.length ? relays : undefined).catch(() => []);
+    const k = nzKey();
+    for (const z of zaps) {
+      let status: string;
+      let cls = 'ok';
+      if (done.has(z.id)) (status = 'received earlier'), (cls = 'old');
+      else if (!k || !z.lockedTo.includes(k.pub)) (status = 'locked to another key'), (cls = 'old');
+      else {
+        try {
+          const w = z.mint === mintUrl ? wallet : new EcashWallet(z.mint, store);
+          const n = await w.receiveLocked(z.proofs, k.sk);
+          got += z.mint === mintUrl ? n : 0;
+          status = `+${n} sat` + (z.mint === mintUrl ? '' : ` at ${new URL(z.mint).host}`);
+          done.add(z.id);
+        } catch (e) {
+          const msg = (e as Error).message;
+          if (/spent/i.test(msg)) (status = 'claimed elsewhere'), (cls = 'old'), done.add(z.id);
+          else (status = msg.slice(0, 80) + ' (will retry)'), (cls = 'bad');
+        }
+      }
+      $('inList').append(el('li', { className: cls },
+        el('span', { textContent: new Date(z.at * 1000).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }) }),
+        el('span', { textContent: `${z.amount} sat nutzap${z.comment ? ' · ' + z.comment : ''}` }),
+        el('span', { textContent: status })));
+    }
+    // newest first across both kinds
+    const items = [...$('inList').children].map((li, i) => ({ li, at: i < pays.length ? pays[i].at : zaps[i - pays.length].at }));
+    $('inList').replaceChildren(...items.sort((a, b) => b.at - a.at).map((x) => x.li));
     localStorage.setItem(doneKey, JSON.stringify([...done]));
-    $('inState').textContent = pays.length ? `${pays.length} payment(s) found.` + (got ? ` ${got} sat added to your wallet.` : '') : 'No payments yet.';
+    const total = pays.length + zaps.length;
+    $('inState').textContent = total ? `${pays.length} payment(s), ${zaps.length} nutzap(s) found.` + (got ? ` ${got} sat added to your wallet.` : '') : 'No payments yet.';
     refreshBalance();
   } catch (e) {
     $('inState').textContent = (e as Error).message;

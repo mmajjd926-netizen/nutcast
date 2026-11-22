@@ -2,12 +2,13 @@
 // open them (wrap -> seal -> rumor) and read the ecash payment inside.
 // Decryption goes through a Signer, so the key can stay in a NIP-07 extension.
 import { getEncodedToken, type Proof } from '@cashu/cashu-ts';
-import { SimplePool, generateSecretKey, getPublicKey, nip44, verifyEvent, type Event } from 'nostr-tools';
+import { SimplePool, finalizeEvent, generateSecretKey, getPublicKey, nip44, verifyEvent, type Event, type EventTemplate } from 'nostr-tools';
 import { FALLBACK_RELAYS } from './nostr';
 
 export interface Signer {
   getPublicKey(): Promise<string>;
   nip44Decrypt(peer: string, ciphertext: string): Promise<string>;
+  signEvent(template: EventTemplate): Promise<Event>;
 }
 
 /** A key kept by the page itself (hex secret). */
@@ -16,6 +17,7 @@ export function localSigner(skHex: string): Signer {
   return {
     getPublicKey: async () => getPublicKey(sk),
     nip44Decrypt: async (peer, ct) => nip44.v2.decrypt(ct, nip44.v2.utils.getConversationKey(sk, peer)),
+    signEvent: async (t) => finalizeEvent(t, sk),
   };
 }
 
@@ -26,13 +28,21 @@ export function newLocalKey(): string {
 interface Nip07 {
   getPublicKey(): Promise<string>;
   nip44?: { decrypt(peer: string, ciphertext: string): Promise<string> };
+  signEvent?(t: EventTemplate): Promise<Event>;
 }
 
 /** A NIP-07 browser extension (Alby, nos2x, …). It must support nip44. */
 export function extensionSigner(ext: Nip07 | undefined): Signer {
   if (!ext) throw new Error('No Nostr extension found in this browser.');
   if (!ext.nip44) throw new Error('Your Nostr extension cannot decrypt NIP-44 messages.');
-  return { getPublicKey: () => ext.getPublicKey(), nip44Decrypt: (p, c) => ext.nip44!.decrypt(p, c) };
+  return {
+    getPublicKey: () => ext.getPublicKey(),
+    nip44Decrypt: (p, c) => ext.nip44!.decrypt(p, c),
+    signEvent: async (t) => {
+      if (!ext.signEvent) throw new Error('Your Nostr extension cannot sign events.');
+      return ext.signEvent(t);
+    },
+  };
 }
 
 export interface IncomingPayment {

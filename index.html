@@ -155,6 +155,11 @@
       <p id="inWho" class="small muted"></p>
       <div class="row"><button id="inCheck" type="button" disabled>Check for payments</button> <span id="inState" class="small muted"></span></div>
       <ul id="inList" class="history"></ul>
+      <h4>Nutzaps (NIP-61)</h4>
+      <p class="small">Some players (nodesignal's cashu-player, Nutcast itself) send ecash locked to a key you publish in a kind 10019 event, as public kind 9321 events.
+        Publish yours here: the mints are the ones above (or this wallet's mint), the lock key is made and kept in this browser, apart from your Nostr key.
+        "Check for payments" then also redeems nutzaps locked to it.</p>
+      <div class="row"><button id="nzAccept" type="button" disabled>Accept nutzaps</button> <span id="nzAcceptState" class="small muted"></span></div>
       <div class="row end"><button value="close">Close</button></div>
     </form>
   </dialog>

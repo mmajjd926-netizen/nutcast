@@ -215,6 +215,17 @@ export class EcashWallet {
     });
   }
 
+  /** Receive proofs locked to our key (NUT-11), e.g. a nutzap. The mint swaps them for fresh ones only we hold. */
+  receiveLocked(proofs: Proof[], privkey: string): Promise<number> {
+    return this.exclusive(async () => {
+      await this.load();
+      const token = getEncodedToken({ mint: this.mintUrl, proofs });
+      const fresh = await this.wallet.ops.receive(token).privkey(privkey).run();
+      this.save([...this.proofs(), ...fresh]);
+      return fresh.reduce((s, p) => s + n(p.amount), 0);
+    });
+  }
+
   /** Put proofs back (for example when delivering a payment failed and the token was never seen by anyone). */
   restore(proofs: Proof[]) {
     this.save([...this.proofs(), ...proofs]);
