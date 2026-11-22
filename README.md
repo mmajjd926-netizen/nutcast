@@ -14,6 +14,12 @@ Nutcast is a podcast player that reads a feed's Podcasting 2.0 value split (`<po
 **stream sats per minute** and **send boosts with a message**, paid from an ecash wallet that lives in the page.
 No node, no channel, no account, no server of ours: it is a static site.
 
+Three ways the sats leave the page:
+
+- **Lightning split** — each Lightning-address recipient of `<podcast:value>` is paid by melting ecash (LNURL-pay → NUT-05), batched to keep the mint's fee reserve small; keysend-only recipients are shown as skipped, never redistributed.
+- **Ecash split** — a proposed `<podcast:value type="cashu" method="nut18">` block: recipients get ecash directly as NUT-18 payments over Nostr (NIP-17), no Lightning fee, so streams can settle every minute. Interoperates with cashu.me.
+- **Nutzaps (NIP-61)** — for a show that names its npub, boosts *and* streams go out as nutzaps locked to the key in its kind 10019, tagged with the episode and show (NIP-73), with what is left under a batch paid on episode change, end or pause. Podcasters redeem them in Nutcast or any NIP-60 wallet (checked against applesauce, the library behind noStrudel).
+
 ![Nutcast in 30 seconds: top up on the test mint, a Lightning boost split 80/20 (the keysend share is skipped, not redistributed), an ecash boost over NUT-18 with no fee, and the podcaster opening the payment in their inbox](shots/demo.gif)
 
 *Top up on the test mint → boost a Lightning-address split → boost an ecash split over NUT-18 (no Lightning fee) →
