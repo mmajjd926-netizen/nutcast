@@ -2,3 +2,4 @@ node_modules
 dist
 *.tmp.*
 shots/video
+shots/video-nz

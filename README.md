@@ -99,11 +99,14 @@ Episode 2 of the demo show uses such a block. Episode 1 uses a classic Lightning
 
   <img src="shots/nutzap.png" width="560" alt="Nutzap the show">
 - **Stream as nutzaps.** For such a show, "…as nutzaps to the show's Nostr wallet" sends the streamed sats as nutzaps
-  instead of through the value split: no Lightning, so no routing fee or melt reserve, one nutzap per 10 sat streamed.
+  instead of through the value split: no Lightning, so no routing fee or melt reserve, one nutzap per 10 sat streamed
+  (only the mint's own swap fee, if it has one: 0 on Minibits, 1–2 sat per nutzap on testnut).
   Every nutzap (boosts too) carries NIP-73 tags for the episode and the show — `["i", "podcast:item:guid:<guid>"]`,
   `["i", "podcast:guid:<guid>"]` with their `k` tags — so a client can list what an episode received, the way
   Podcasting 2.0 apps list boosts. `tools/e2e-nutzap-stream.mjs` plays the demo episode at 60 sat/min, waits for two
   nutzaps and reads them back from the relays with their tags.
+
+  <img src="shots/nutzap-stream.gif" width="640" alt="Nutzap the show, then stream to it as nutzaps">
 - **Take nutzaps as a podcaster.** "For podcasters" → "Accept nutzaps" publishes your kind 10019 (signed by your NIP-07
   extension or a key kept in the browser): your relays, the mints you accept, and a fresh lock key made and kept on the page,
   apart from your Nostr key. "Check for payments" then lists kind 9321 events tagged with you next to the NIP-17 payments and

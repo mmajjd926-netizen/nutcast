@@ -196,10 +196,12 @@ function openFeed(xml: string) {
 
 // ---------- NIP-61 nutzaps to the show's npub (<podcast:txt purpose="nostr">) ----------
 async function loadNutzap(f: Feed) {
+  const pk = npubHex(f.nostr);
+  // the same show again (the feed renders more than once): keep what is on screen, e.g. "Sent: nutzap …"
+  if (nz && pk && nz.pubkey === pk) return;
   nz = undefined;
   $('nzRow').classList.add('hidden');
   $('streamNzRow').classList.add('hidden');
-  const pk = npubHex(f.nostr);
   if (!pk) return;
   try {
     const info = await fetchNutzapInfo(pk);
@@ -218,10 +220,16 @@ function nzExplain() {
   $('streamNzRow').classList.remove('hidden');
   ($('streamNz') as HTMLInputElement).disabled = !ok;
   if (!ok) ($('streamNz') as HTMLInputElement).checked = false;
-  $('streamNzNote').textContent = ok ? '' : `(needs ecash from ${nz.mints.map((m) => new URL(m).host).join(', ')})`;
+  streamNzNote();
   $('nzState').textContent = ok
     ? `Paid from your wallet at ${new URL(mintUrl).host}, the boost amount and message above.`
     : `The show accepts ecash from ${nz.mints.map((m) => new URL(m).host).join(', ')}. Your wallet is at ${new URL(mintUrl).host}; switch to one of those mints to nutzap.`;
+}
+function streamNzNote() {
+  if (!nz) return;
+  const ok = nz.mints.some((m) => sameMint(m, mintUrl));
+  const on = ($('streamNz') as HTMLInputElement).checked;
+  $('streamNzNote').textContent = !ok ? `(needs ecash from ${nz.mints.map((m) => new URL(m).host).join(', ')})` : on ? '(instead of the split above; boosts still follow the split)' : '';
 }
 /** Lock `sats` to the show's key and publish the nutzap, tagged with the show and episode (NIP-73). */
 async function sendNutzap(info: NutzapInfo, sats: number, comment: string): Promise<{ fee: number; id: string; relays: number }> {
@@ -393,6 +401,8 @@ function streamBlock(b: ValueBlock): ValueBlock {
   if (!on || !nz || !feed) return b;
   return { type: 'cashu', method: 'nutzap', recipients: [{ name: `${feed.title} (nutzap)`, kind: 'nutzap', address: nz.pubkey, split: 100, fee: false }] };
 }
+
+$('streamNz').onchange = streamNzNote;
 
 let accrued = 0;
 let last: number | undefined;
