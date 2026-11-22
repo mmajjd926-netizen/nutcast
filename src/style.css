@@ -108,3 +108,6 @@ footer { text-align: center; padding: 1.5rem; }
 .handoff .item .qr { width: 100%; margin: .4rem 0; }
 .handoff .item .err { color: #e66; }
 .handoff p { grid-column: 1 / -1; margin: 0; }
+
+.wall { list-style: none; padding: 0; margin: 0.2rem 0 0; font-size: 0.85rem; }
+.wall li { padding: 0.15rem 0; border-bottom: 1px dashed rgba(0, 0, 0, 0.08); }

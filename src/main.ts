@@ -6,7 +6,7 @@ import { boost, Streamer, type Payer, type Settlement } from './core/stream';
 import { handoffBoost } from './core/handoff';
 import { chooseBlock, parseFeed, payable, splitAmount, type Episode, type Feed, type ValueBlock } from './core/value';
 import { DEMO_MINT, EcashWallet, type Store } from './core/wallet';
-import { fetchNutzapInfo, fetchNutzaps, newNutzapKey, npubHex, nutzapEvent, nutzapInfoTemplate, podcastTags, publishNutzap, publishSigned, sameMint, xOnly, type NutzapInfo } from './core/nutzap';
+import { fetchEpisodeNutzaps, fetchNutzapInfo, fetchNutzaps, newNutzapKey, npubHex, nutzapEvent, nutzapInfoTemplate, podcastTags, publishNutzap, publishSigned, sameMint, xOnly, type NutzapInfo } from './core/nutzap';
 import type { Event as NostrEvent } from 'nostr-tools';
 import { extensionSigner, fetchPayments, localSigner, newLocalKey, type Signer } from './core/inbox';
 import { fetchRedeemed, fetchWallet, redeemedTemplate, proofsTotal, signAndPublish, tokenTemplate, walletTemplate, type Nip60Wallet } from './core/nip60';
@@ -209,6 +209,7 @@ async function loadNutzap(f: Feed) {
     nz = info;
     $('nzRow').classList.remove('hidden');
     nzExplain();
+    loadEpisodeNutzaps();
   } catch (e) {
     console.warn('nutzap info', e);
   }
@@ -295,6 +296,7 @@ $('nzBtn').onclick = async () => {
     if (r.relays) {
       addHistory({ at: Date.now(), recipient: who, address: info.relays[0] ?? '', sats, fee: r.fee, ok: true, kind: 'boost' });
       $('nzState').textContent = `Sent: nutzap ${r.id.slice(0, 8)}… accepted by ${r.relays} relay(s).`;
+      setTimeout(loadEpisodeNutzaps, 1500);
     } else {
       addHistory({ at: Date.now(), recipient: who, address: '', sats, fee: r.fee, ok: false, error: 'no relay took it yet; Nutcast will send it again', kind: 'boost' });
       $('nzState').textContent = 'No relay accepted the event yet.';
@@ -351,6 +353,22 @@ function select(ep: Episode) {
   if (block?.suggestedSatsPerMinute && !rateTouched) ($('rate') as HTMLInputElement).value = String(Math.min(MAX_DEFAULT_RATE, Math.max(1, Math.round(block.suggestedSatsPerMinute))));
   readOpts();
   renderSplit();
+  loadEpisodeNutzaps();
+}
+
+/** The nutzaps this episode got (NIP-73 tag), shown under the nutzap button like a boost wall. */
+async function loadEpisodeNutzaps() {
+  const wall = $('nzWall');
+  wall.replaceChildren();
+  const ep = episode;
+  if (!nz || !ep) return;
+  const zaps = await fetchEpisodeNutzaps(nz.pubkey, ep.guid, nz.relays).catch(() => []);
+  if (episode !== ep || !zaps.length) return;
+  const total = zaps.reduce((s, z) => s + z.amount, 0);
+  wall.append(
+    el('p', { className: 'small', textContent: `This episode got ${zaps.length} nutzap${zaps.length > 1 ? 's' : ''}, ${total} sat (as listed on Nostr):` }),
+    el('ul', { className: 'wall' }, ...zaps.slice(0, 8).map((z) => el('li', {}, el('b', { textContent: `${z.amount} sat` }), el('span', { textContent: z.comment ? ` · ${z.comment.slice(0, 120)}` : '' })))),
+  );
 }
 
 function play(ep: Episode) {

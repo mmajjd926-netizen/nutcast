@@ -107,6 +107,11 @@ Episode 2 of the demo show uses such a block. Episode 1 uses a classic Lightning
   nutzaps and reads them back from the relays with their tags.
 
   <img src="shots/nutzap-stream.gif" width="640" alt="Nutzap the show, then stream to it as nutzaps">
+- **The episode's nutzap wall.** Those tags are read back too: under the nutzap button Nutcast lists the nutzaps the open
+  episode got (kind 9321 to the show's npub with `#i podcast:item:guid:<guid>`), with amounts and messages, like the boost
+  wall of a Podcasting 2.0 app. Amounts are as the events state them; only the show's key can redeem them.
+
+  <img src="shots/nutzap-wall.png" width="480" alt="The nutzaps an episode got">
 - **Take nutzaps as a podcaster.** "For podcasters" → "Accept nutzaps" publishes your kind 10019 (signed by your NIP-07
   extension or a key kept in the browser): your relays, the mints you accept, and a fresh lock key made and kept on the page,
   apart from your Nostr key. "Check for payments" then lists kind 9321 events tagged with you next to the NIP-17 payments and

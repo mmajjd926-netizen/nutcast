@@ -185,6 +185,22 @@ export async function fetchNutzaps(pubkey: string, relays: string[] = FALLBACK_R
   return out.sort((a, b) => b.at - a.at);
 }
 
+/** Nutzaps to the show `pubkey` tagged with this episode (NIP-73 `i` tag), newest first. Amounts are as the events state them. */
+export async function fetchEpisodeNutzaps(pubkey: string, itemGuid: string, relays: string[] = FALLBACK_RELAYS): Promise<IncomingNutzap[]> {
+  pool ??= new SimplePool();
+  const evs = await pool.querySync([...new Set([...relays, ...FALLBACK_RELAYS])], { kinds: [9321], '#p': [pubkey], '#i': [`podcast:item:guid:${itemGuid}`] }, { maxWait: 6000 });
+  const byId = new Map<string, IncomingNutzap>();
+  for (const e of evs) {
+    if (byId.has(e.id)) continue;
+    try {
+      byId.set(e.id, parseNutzap(e));
+    } catch {
+      /* junk */
+    }
+  }
+  return [...byId.values()].sort((a, b) => b.at - a.at);
+}
+
 /** Publish an already signed event (the podcaster's kind 10019) to `relays`. */
 export async function publishSigned(ev: Event, relays: string[], timeoutMs = 8000): Promise<string[]> {
   return publishNutzap({ pubkey: ev.pubkey, p2pk: '', mints: [], relays }, ev, timeoutMs);
