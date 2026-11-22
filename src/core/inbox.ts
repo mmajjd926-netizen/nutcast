@@ -8,6 +8,8 @@ import { FALLBACK_RELAYS } from './nostr';
 export interface Signer {
   getPublicKey(): Promise<string>;
   nip44Decrypt(peer: string, ciphertext: string): Promise<string>;
+  /** Used for NIP-60 events (encrypted to yourself). */
+  nip44Encrypt(peer: string, plaintext: string): Promise<string>;
   signEvent(template: EventTemplate): Promise<Event>;
 }
 
@@ -17,6 +19,7 @@ export function localSigner(skHex: string): Signer {
   return {
     getPublicKey: async () => getPublicKey(sk),
     nip44Decrypt: async (peer, ct) => nip44.v2.decrypt(ct, nip44.v2.utils.getConversationKey(sk, peer)),
+    nip44Encrypt: async (peer, pt) => nip44.v2.encrypt(pt, nip44.v2.utils.getConversationKey(sk, peer)),
     signEvent: async (t) => finalizeEvent(t, sk),
   };
 }
@@ -27,7 +30,7 @@ export function newLocalKey(): string {
 
 interface Nip07 {
   getPublicKey(): Promise<string>;
-  nip44?: { decrypt(peer: string, ciphertext: string): Promise<string> };
+  nip44?: { decrypt(peer: string, ciphertext: string): Promise<string>; encrypt?(peer: string, plaintext: string): Promise<string> };
   signEvent?(t: EventTemplate): Promise<Event>;
 }
 
@@ -38,6 +41,10 @@ export function extensionSigner(ext: Nip07 | undefined): Signer {
   return {
     getPublicKey: () => ext.getPublicKey(),
     nip44Decrypt: (p, c) => ext.nip44!.decrypt(p, c),
+    nip44Encrypt: async (p, t) => {
+      if (!ext.nip44?.encrypt) throw new Error('Your Nostr extension cannot encrypt NIP-44 messages.');
+      return ext.nip44.encrypt(p, t);
+    },
     signEvent: async (t) => {
       if (!ext.signEvent) throw new Error('Your Nostr extension cannot sign events.');
       return ext.signEvent(t);

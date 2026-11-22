@@ -157,9 +157,11 @@
       <ul id="inList" class="history"></ul>
       <h4>Nutzaps (NIP-61)</h4>
       <p class="small">Some players (nodesignal's cashu-player, Nutcast itself) send ecash locked to a key you publish in a kind 10019 event, as public kind 9321 events.
-        Publish yours here: the mints are the ones above (or this wallet's mint), the lock key is made and kept in this browser, apart from your Nostr key.
-        "Check for payments" then also redeems nutzaps locked to it.</p>
+        Publish yours here: the mints are the ones above (or this wallet's mint). If you already have a NIP-60 wallet on Nostr (kind 17375), its key is used,
+        so that wallet and Nutcast redeem the same nutzaps; otherwise a lock key is made here, apart from your Nostr key, and saved as your NIP-60 wallet.
+        "Check for payments" then also redeems nutzaps, and marks each one redeemed (kind 7376) so your other wallets skip it.</p>
       <div class="row"><button id="nzAccept" type="button" disabled>Accept nutzaps</button> <span id="nzAcceptState" class="small muted"></span></div>
+      <label class="small"><input id="nzToNostr" type="checkbox" /> Keep redeemed nutzaps in my Nostr wallet (NIP-60 token events) instead of this browser</label>
       <div class="row end"><button value="close">Close</button></div>
     </form>
   </dialog>

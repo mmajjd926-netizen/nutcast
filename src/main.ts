@@ -9,6 +9,7 @@ import { DEMO_MINT, EcashWallet, type Store } from './core/wallet';
 import { fetchNutzapInfo, fetchNutzaps, newNutzapKey, npubHex, nutzapEvent, nutzapInfoTemplate, publishNutzap, publishSigned, sameMint, type NutzapInfo } from './core/nutzap';
 import type { Event as NostrEvent } from 'nostr-tools';
 import { extensionSigner, fetchPayments, localSigner, newLocalKey, type Signer } from './core/inbox';
+import { fetchRedeemed, fetchWallet, redeemedTemplate, proofsTotal, signAndPublish, tokenTemplate, walletTemplate, type Nip60Wallet } from './core/nip60';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const store: Store = { get: (k) => localStorage.getItem(k), set: (k, v) => localStorage.setItem(k, v) };
@@ -505,38 +506,64 @@ const NZ_KEY = 'nutcast:nutzapKey';
 const nzKey = (): { sk: string; pub: string } | undefined => JSON.parse(localStorage.getItem(NZ_KEY) ?? 'null') ?? undefined;
 const inRelays = () => ($('crRelays') as HTMLInputElement).value.split(/\s+/).filter((r) => /^wss?:\/\//.test(r));
 let myNz: NutzapInfo | undefined;
+let nip60: Nip60Wallet | undefined;
+const host = (m: string) => new URL(m).host;
 async function showNutzapSetup(pk: string) {
   const st = $('nzAcceptState');
-  st.textContent = 'Looking for your kind 10019…';
-  try {
-    myNz = await fetchNutzapInfo(pk, inRelays());
-  } catch (e) {
+  st.textContent = 'Looking for your kind 10019 and NIP-60 wallet…';
+  nip60 = undefined;
+  let note = '';
+  const [info, w] = await Promise.allSettled([fetchNutzapInfo(pk, inRelays()), signer ? fetchWallet(signer, inRelays()) : Promise.resolve(undefined)]);
+  if (w.status === 'fulfilled') nip60 = w.value;
+  else note = ` (Your NIP-60 wallet could not be read: ${(w.reason as Error).message})`;
+  ($('nzToNostr') as HTMLInputElement).checked = !!nip60;
+  if (info.status === 'rejected') {
     myNz = undefined;
-    st.textContent = `Your kind 10019 is unreadable (${(e as Error).message}).`;
+    st.textContent = `Your kind 10019 is unreadable (${(info.reason as Error).message}).` + note;
     return;
   }
+  myNz = info.value;
   const k = nzKey();
-  if (!myNz) st.textContent = 'You do not accept nutzaps yet.';
-  else if (k && myNz.p2pk === k.pub) st.textContent = `You accept nutzaps at ${myNz.mints.map((m) => new URL(m).host).join(', ')}, locked to the key kept here.`;
+  const at = myNz ? myNz.mints.map(host).join(', ') : '';
+  if (!myNz) st.textContent = 'You do not accept nutzaps yet.' + (nip60 ? ' You have a NIP-60 wallet: nutzaps will be locked to its key, so that wallet and Nutcast can both redeem them.' : '');
+  else if (nip60 && myNz.p2pk === nip60.pub) st.textContent = `You accept nutzaps at ${at}, locked to your NIP-60 wallet key. Nutcast redeems them too and marks them redeemed (kind 7376) for your other wallets.`;
+  else if (k && myNz.p2pk === k.pub) st.textContent = `You accept nutzaps at ${at}, locked to the key kept here.` + (nip60 ? ' Your NIP-60 wallet uses another key; publish again to switch to it.' : '');
   else st.textContent = `You accept nutzaps already, locked to a key another wallet holds (${myNz.p2pk.slice(0, 10)}…). Redeem them there, or publish again to have new ones come here.`;
+  st.textContent += note;
 }
 $('nzAccept').onclick = async () => {
   if (!signer) return;
   const st = $('nzAcceptState');
   const btn = $('nzAccept') as HTMLButtonElement;
   const k = nzKey();
-  if (myNz && (!k || myNz.p2pk !== k.pub) && !confirm('Your current kind 10019 locks nutzaps to a key held by another wallet. Replace it? Nutzaps already sent stay redeemable there.')) return;
+  const current = nip60?.pub ?? k?.pub;
+  if (myNz && myNz.p2pk !== current && !confirm('Your current kind 10019 locks nutzaps to a key held by another wallet. Replace it? Nutzaps already sent stay redeemable there.')) return;
   btn.disabled = true;
   try {
-    const key = k ?? newNutzapKey();
-    if (!k) localStorage.setItem(NZ_KEY, JSON.stringify(key));
     const typed = ($('crMints') as HTMLInputElement).value.split(/\s+/).filter((m) => /^https:\/\//.test(m));
-    const mints = typed.length ? typed : [mintUrl];
-    const relays = inRelays().length ? inRelays() : undefined;
-    const ev = await signer.signEvent(nutzapInfoTemplate(key.pub, mints, relays ?? ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net']));
-    const ok = await publishSigned(ev, relays ?? ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net']);
-    st.textContent = `Published (accepted by ${ok.length} relay(s)). Nutzaps from ${mints.map((m) => new URL(m).host).join(', ')} now come here.`;
-    myNz = { pubkey: ev.pubkey, p2pk: key.pub, mints, relays: relays ?? [] };
+    const mints = typed.length ? typed : nip60?.mints.length ? nip60.mints : [mintUrl];
+    const relays = inRelays().length ? inRelays() : ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net'];
+    let pub: string;
+    let made = '';
+    if (nip60) pub = nip60.pub;
+    else {
+      const key = k ?? newNutzapKey();
+      if (!k) localStorage.setItem(NZ_KEY, JSON.stringify(key));
+      pub = key.pub;
+      // No NIP-60 wallet yet: save the key as one (kind 17375), so any NIP-60 wallet you sign into can redeem these nutzaps too.
+      // (Only when none was found: kind 17375 is replaceable, and overwriting a wallet would orphan its key.)
+      try {
+        const r = await signAndPublish(signer, await walletTemplate(signer, key.sk, mints), relays);
+        nip60 = { event: r.event, privkey: key.sk, pub: key.pub, mints };
+        made = ' The key is also saved as your NIP-60 wallet (kind 17375, encrypted to you), so Nostr wallets that speak NIP-60 can redeem these nutzaps too.';
+      } catch (e) {
+        made = ` The NIP-60 wallet was not saved (${(e as Error).message}); the key stays in this browser.`;
+      }
+    }
+    const ev = await signer.signEvent(nutzapInfoTemplate(pub, mints, relays));
+    const ok = await publishSigned(ev, relays);
+    st.textContent = `Published (accepted by ${ok.length} relay(s)). Nutzaps from ${mints.map(host).join(', ')} now come here.` + made;
+    myNz = { pubkey: ev.pubkey, p2pk: pub, mints, relays };
   } catch (e) {
     st.textContent = (e as Error).message;
   } finally {
@@ -593,20 +620,48 @@ $('inCheck').onclick = async () => {
         el('span', { textContent: status })));
     }
     // nutzaps: public kind 9321 events tagged with our Nostr key, ecash locked to our 10019 key
-    const zaps = await fetchNutzaps(await signer.getPublicKey(), relays.length ? relays : undefined).catch(() => []);
+    const me = await signer.getPublicKey();
+    const zaps = await fetchNutzaps(me, relays.length ? relays : undefined).catch(() => []);
+    // keys that can unlock nutzaps: the one kept here and the NIP-60 wallet's
+    const keys = new Map<string, string>();
     const k = nzKey();
+    if (k) keys.set(k.pub, k.sk);
+    if (nip60) keys.set(nip60.pub, nip60.privkey);
+    // nutzaps another NIP-60 wallet (or Nutcast earlier) already marked redeemed
+    const redeemed = zaps.length ? await fetchRedeemed(me, relays).catch(() => new Set<string>()) : new Set<string>();
+    const toNostr = ($('nzToNostr') as HTMLInputElement).checked;
+    const pubRelays = relays.length ? relays : ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net'];
     for (const z of zaps) {
       let status: string;
       let cls = 'ok';
+      const lock = z.lockedTo.find((p) => keys.has(p));
       if (done.has(z.id)) (status = 'received earlier'), (cls = 'old');
-      else if (!k || !z.lockedTo.includes(k.pub)) (status = 'locked to another key'), (cls = 'old');
+      else if (redeemed.has(z.id)) (status = 'redeemed by your Nostr wallet'), (cls = 'old'), done.add(z.id);
+      else if (!lock) (status = 'locked to another key'), (cls = 'old');
       else {
         try {
           const w = z.mint === mintUrl ? wallet : new EcashWallet(z.mint, store);
-          const n = await w.receiveLocked(z.proofs, k.sk);
-          got += z.mint === mintUrl ? n : 0;
-          status = `+${n} sat` + (z.mint === mintUrl ? '' : ` at ${new URL(z.mint).host}`);
+          let created: string | undefined;
+          if (toNostr) {
+            const fresh = await w.redeemLocked(z.proofs, keys.get(lock)!);
+            const n = proofsTotal(fresh);
+            try {
+              created = (await signAndPublish(signer, await tokenTemplate(signer, z.mint, fresh), pubRelays)).event.id;
+              status = `+${n} sat to your Nostr wallet (NIP-60)`;
+            } catch {
+              // relays refused the token event: keep the sats here rather than lose them
+              w.restore(fresh);
+              got += z.mint === mintUrl ? n : 0;
+              status = `+${n} sat (kept here: relays refused the NIP-60 token)`;
+            }
+          } else {
+            const n = await w.receiveLocked(z.proofs, keys.get(lock)!);
+            got += z.mint === mintUrl ? n : 0;
+            status = `+${n} sat` + (z.mint === mintUrl ? '' : ` at ${host(z.mint)}`);
+          }
           done.add(z.id);
+          // tell the other NIP-60 wallets this nutzap is claimed (best effort)
+          if (toNostr || lock === nip60?.pub) signAndPublish(signer, await redeemedTemplate(signer, z, pubRelays[0], created), pubRelays).catch(() => undefined);
         } catch (e) {
           const msg = (e as Error).message;
           if (/spent/i.test(msg)) (status = 'claimed elsewhere'), (cls = 'old'), done.add(z.id);

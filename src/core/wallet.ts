@@ -226,6 +226,15 @@ export class EcashWallet {
     });
   }
 
+  /** Like receiveLocked, but the fresh proofs are returned instead of kept here (for a NIP-60 wallet on Nostr). */
+  redeemLocked(proofs: Proof[], privkey: string): Promise<Proof[]> {
+    return this.exclusive(async () => {
+      await this.load();
+      const token = getEncodedToken({ mint: this.mintUrl, proofs });
+      return this.wallet.ops.receive(token).privkey(privkey).run();
+    });
+  }
+
   /** Put proofs back (for example when delivering a payment failed and the token was never seen by anyone). */
   restore(proofs: Proof[]) {
     this.save([...this.proofs(), ...proofs]);

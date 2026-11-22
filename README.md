@@ -107,6 +107,21 @@ Episode 2 of the demo show uses such a block. Episode 1 uses a classic Lightning
   podcaster's inbox redeems it (+21 sat), and a second check shows it as received earlier.
 
   <img src="shots/nutzap-inbox.png" width="480" alt="A podcaster's inbox redeeming a nutzap">
+- **NIP-60: the same nutzaps in every Nostr wallet.** When you sign in, Nutcast also looks for your NIP-60 wallet (kind 17375,
+  NIP-44 encrypted to you). If you have one, "Accept nutzaps" locks nutzaps to *its* key instead of making a new one, so that
+  wallet and Nutcast redeem the same nutzaps; if you have none, the key Nutcast makes is saved as your NIP-60 wallet, so
+  any NIP-60 wallet you sign into later can redeem them. Every nutzap Nutcast redeems gets a kind 7376 history event with the
+  public `["e", <nutzap id>, relay, "redeemed"]` tag, and nutzaps another wallet already marked that way are skipped without
+  asking the mint. With "Keep redeemed nutzaps in my Nostr wallet" the fresh proofs go into a kind 7375 token event instead
+  of this browser (if no relay takes it, they stay here; nothing is lost). Checked against
+  [applesauce-wallet](https://github.com/hzrd149/applesauce) 7.1 (the NIP-60/61 library behind noStrudel), which Nutcast
+  shares no code with: `test/nip60.applesauce.test.ts` reads each side's 17375, 7375, 7376, 10019 and 9321 with the other,
+  and `tools/e2e-nip60.mjs` runs it live: applesauce makes the podcaster's wallet and 10019 → a listener nutzaps 21 sat from
+  Nutcast → the podcaster signs into Nutcast, which finds the applesauce key and redeems into a 7375 → applesauce decrypts
+  that token event (21 sat, UNSPENT at the mint) and sees the nutzap as redeemed → a fresh browser lists it as
+  "redeemed by your Nostr wallet".
+
+  <img src="shots/nip60-inbox.png" width="480" alt="Nutcast redeeming a nutzap into the podcaster's NIP-60 wallet">
 - **Works with cashu.me** (checked 2026-11-21): a podcaster request from Nutcast, with 21 sat filled in, pasted into
   [cashu.me](https://wallet.cashu.me) is recognised as "Payment request via Nostr"; cashu.me sends it, and the
   Nutcast inbox finds the gift wrap and receives the ecash (21 sat sent, 20 sat after the test mint's 1 sat input fee).
@@ -130,6 +145,7 @@ TypeScript, Vite, [`@cashu/cashu-ts`](https://github.com/cashubtc/cashu-ts) 4.x,
 | `stream.ts` | accrual, budget, batched settlement, boosts |
 | `payer.ts` | glue: Lightning addresses via melt, payment requests via ecash |
 | `nutzap.ts` | NIP-61 both ways: read a show's kind 10019 and send kind 9321; publish your own 10019 and read nutzaps sent to you |
+| `nip60.ts` | NIP-60: read/save the wallet key (17375), token events (7375), "redeemed" history (7376) |
 
 ```bash
 npm install
@@ -138,7 +154,7 @@ NUTCAST_LIVE=1 npx vitest run              # + wallet against testnut.cashu.spac
 npm run dev
 ```
 
-`tools/e2e.mjs`, `tools/e2e-stream.mjs`, `tools/e2e-nutzap.mjs` and `tools/e2e-nutzap-inbox.mjs` drive the built site in headless Chromium: demo feed → top-up → boost
+`tools/e2e.mjs`, `tools/e2e-stream.mjs`, `tools/e2e-nutzap.mjs`, `tools/e2e-nutzap-inbox.mjs` and `tools/e2e-nip60.mjs` drive the built site in headless Chromium: demo feed → top-up → boost
 to a Lightning address → ecash boost over Nostr → the podcaster's inbox receives it → real playback with streaming on.
 
 ## Limits, honestly
