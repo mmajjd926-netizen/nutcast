@@ -31,6 +31,26 @@ function fakePayer(fail = new Set<string>()) {
 }
 
 describe('Streamer', () => {
+  it('flush pays below the threshold, and waits for a settle already running instead of being swallowed by it', async () => {
+    const st = new Streamer({ satsPerMinute: 10, budgetSats: 100 });
+    const { paid } = fakePayer();
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const slow: Payer = {
+      async payLnAddress(a, s, c) { await gate; paid.push([a, s, c]); return { fee: 0 }; },
+      async payRequest(r, s, m) { paid.push([r, s, m]); return { fee: 0 }; },
+    };
+    st.accrue(60 * 10, block); // 100 sat: Cohost 30 (over 21), Guest 20, Host's 50 dropped (keysend)
+    const running = st.settle(slow, false, 'ep1');
+    st.accrue(60, { ...block, recipients: block.recipients.slice(1, 2) }); // 10 more sat to Cohost while its melt is in flight
+    const flushed = st.flush(slow, 'ep1 end');
+    release();
+    await running;
+    const f = await flushed;
+    expect(st.owedSats()).toBe(0);
+    expect(paid).toEqual([['co@example.com', 30, 'ep1'], ['creqAguest', 20, 'ep1'], ['co@example.com', 10, 'ep1 end']]);
+    expect(f.map((x) => [x.sats, x.ok])).toEqual([[10, true]]);
+  });
   it('streams to a nutzap recipient in batches of 10 sat, and refuses a payer that cannot nutzap', async () => {
     const nzBlock: ValueBlock = { type: 'cashu', method: 'nutzap', recipients: [{ name: 'Show (nutzap)', kind: 'nutzap', address: 'ab'.repeat(32), split: 100, fee: false }] };
     const st = new Streamer({ satsPerMinute: 6, budgetSats: 100 });

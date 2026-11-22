@@ -25,7 +25,9 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLEl
 let mintUrl = localStorage.getItem('nutcast:mint') ?? DEMO_MINT;
 let wallet = new EcashWallet(mintUrl, store);
 let nz: NutzapInfo | undefined; // the open show's NIP-61 settings, if it takes nutzaps
-let payer = withNutzaps(walletPayer(wallet));
+let basePayer = walletPayer(wallet);
+let payer = withNutzaps(basePayer);
+const nzKnown = new Map<string, NutzapInfo>(); // every show's nutzap settings seen this session: sats owed to the last show still reach it
 
 /** Every mint this browser holds ecash at (the inbox receives at the payer's mint, so there can be several). */
 function mintBalances(): { mint: string; sats: number }[] {
@@ -67,7 +69,8 @@ function setMint(url: string) {
   mintUrl = url;
   localStorage.setItem('nutcast:mint', mintUrl);
   wallet = new EcashWallet(mintUrl, store);
-  payer = withNutzaps(walletPayer(wallet));
+  basePayer = walletPayer(wallet);
+  payer = withNutzaps(basePayer);
   // an invoice on screen belongs to the previous mint; that mint's unpaid top-ups wait until it is chosen again
   $('invoiceBox').classList.add('hidden');
   $('topupState').textContent = '';
@@ -207,6 +210,7 @@ async function loadNutzap(f: Feed) {
     const info = await fetchNutzapInfo(pk);
     if (!info || feed !== f) return;
     nz = info;
+    nzKnown.set(info.pubkey, info);
     $('nzRow').classList.remove('hidden');
     nzExplain();
     loadEpisodeNutzaps();
@@ -233,10 +237,13 @@ function streamNzNote() {
   $('streamNzNote').textContent = !ok ? `(needs ecash from ${nz.mints.map((m) => new URL(m).host).join(', ')})` : on ? '(instead of the split above; boosts still follow the split)' : '';
 }
 /** Lock `sats` to the show's key and publish the nutzap, tagged with the show and episode (NIP-73). */
-async function sendNutzap(info: NutzapInfo, sats: number, comment: string): Promise<{ fee: number; id: string; relays: number }> {
+interface Listening { feedGuid?: string; epGuid?: string; title: string }
+/** What is playing now: a flush pays for the episode that was heard, even if the next one is already open. */
+const listeningNow = (): Listening => ({ feedGuid: feed?.guid, epGuid: episode?.guid, title: episode?.title ?? feed?.title ?? '' });
+async function sendNutzap(info: NutzapInfo, sats: number, comment: string, ctx = listeningNow()): Promise<{ fee: number; id: string; relays: number }> {
   const before = wallet.balance();
   const proofs = await wallet.sendLocked(sats, info.p2pk);
-  const ev = nutzapEvent(info, mintUrl, proofs, comment, undefined, podcastTags(feed?.guid, episode?.guid));
+  const ev = nutzapEvent(info, mintUrl, proofs, comment, undefined, podcastTags(ctx.feedGuid, ctx.epGuid));
   const fee = Math.max(0, before - wallet.balance() - sats);
   try {
     const ok = await publishNutzap(info, ev);
@@ -251,12 +258,13 @@ async function sendNutzap(info: NutzapInfo, sats: number, comment: string): Prom
 }
 
 /** The streamer's payer, plus nutzaps to the open show. */
-function withNutzaps(p: Payer): Payer {
+function withNutzaps(p: Payer, ctx?: Listening): Payer {
   return {
     ...p,
     async payNutzap(pubkey, sats, comment) {
-      if (!nz || nz.pubkey !== pubkey) throw new Error('The show\'s nutzap settings are not loaded.');
-      const r = await sendNutzap(nz, sats, comment ?? '');
+      const info = nzKnown.get(pubkey);
+      if (!info) throw new Error('The show\'s nutzap settings are not loaded.');
+      const r = await sendNutzap(info, sats, comment ?? '', ctx);
       return { fee: r.fee };
     },
   };
@@ -344,6 +352,8 @@ $('pasteXml').oninput = (e) => {
 };
 
 function select(ep: Episode) {
+  // switching episodes: pay what the last one earned first, below the batch threshold too
+  if (episode && ep !== episode) flushStream();
   episode = ep;
   block = chooseBlock(ep.value);
   $('epTitle').textContent = ep.title;
@@ -426,7 +436,19 @@ let accrued = 0;
 let last: number | undefined;
 const audio = $('audio') as HTMLAudioElement;
 audio.addEventListener('seeking', () => (last = undefined));
-audio.addEventListener('pause', () => (last = undefined));
+// a pause longer than a minute, or the end of the episode, pays what is owed (below the batch threshold too)
+const PAUSE_FLUSH_MS = 60_000;
+let pauseTimer: ReturnType<typeof setTimeout> | undefined;
+audio.addEventListener('pause', () => {
+  last = undefined;
+  clearTimeout(pauseTimer);
+  if (!audio.ended) pauseTimer = setTimeout(() => audio.paused && flushStream(), PAUSE_FLUSH_MS);
+});
+audio.addEventListener('play', () => clearTimeout(pauseTimer));
+audio.addEventListener('ended', () => {
+  clearTimeout(pauseTimer);
+  flushStream();
+});
 audio.addEventListener('timeupdate', () => {
   const t = audio.currentTime;
   const on = ($('streamOn') as HTMLInputElement).checked;
@@ -448,6 +470,18 @@ setInterval(async () => {
   }
   renderStats();
 }, 15000);
+
+/** Pay everything owed now, tagged with the episode that earned it. */
+async function flushStream() {
+  if (!($('streamOn') as HTMLInputElement).checked || streamer.owedSats() < 1) return;
+  const ctx = listeningNow(); // before any await: select() changes the episode right after calling this
+  const done = await streamer.flush(withNutzaps(basePayer, ctx), `Streamed from Nutcast: ${ctx.title}`.slice(0, 120));
+  if (done.length) {
+    done.forEach(addHistory);
+    refreshBalance();
+  }
+  renderStats();
+}
 
 function renderStats() {
   $('stStreamed').textContent = accrued.toFixed(accrued < 10 ? 2 : 0);
@@ -752,4 +786,4 @@ $('inCheck').onclick = async () => {
 };
 
 // For debugging from the console: nutcast.streamer, nutcast.wallet
-Object.assign(window, { nutcast: { streamer, get wallet() { return wallet; } } });
+Object.assign(window, { nutcast: { streamer, get wallet() { return wallet; }, get episode() { return episode; } } });

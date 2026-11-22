@@ -101,6 +101,9 @@ Episode 2 of the demo show uses such a block. Episode 1 uses a classic Lightning
 - **Stream as nutzaps.** For such a show, "…as nutzaps to the show's Nostr wallet" sends the streamed sats as nutzaps
   instead of through the value split: no Lightning, so no routing fee or melt reserve, one nutzap per 10 sat streamed
   (only the mint's own swap fee, if it has one: 0 on Minibits, 1–2 sat per nutzap on testnut).
+  What is left under a batch (any recipient, Lightning or nutzap) is paid when the listener switches episodes, when
+  the episode ends, or after a pause of more than a minute, and it is tagged with the episode that earned it, not the
+  one opened next (`tools/e2e-flush.mjs`: 5 sat streamed, episode 2 opened → a 5-sat nutzap tagged `frisky-01`).
   Every nutzap (boosts too) carries NIP-73 tags for the episode and the show — `["i", "podcast:item:guid:<guid>"]`,
   `["i", "podcast:guid:<guid>"]` with their `k` tags — so a client can list what an episode received, the way
   Podcasting 2.0 apps list boosts. `tools/e2e-nutzap-stream.mjs` plays the demo episode at 60 sat/min, waits for two

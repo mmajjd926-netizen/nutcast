@@ -103,6 +103,12 @@ export class Streamer {
     return (this.settling ??= this.doSettle(payer, flush, comment).finally(() => (this.settling = undefined)));
   }
 
+  /** Pay everything owed now (episode ended or changed, a long pause): waits for a settle already running, so nothing is skipped. */
+  async flush(payer: Payer, comment?: string): Promise<Settlement[]> {
+    if (this.settling) await this.settling.catch(() => undefined);
+    return this.settle(payer, true, comment);
+  }
+
   private async doSettle(payer: Payer, flush: boolean, comment?: string): Promise<Settlement[]> {
     const out: Settlement[] = [];
     for (const [k, msat] of this.owedMsat) {
