@@ -5,6 +5,10 @@
 **Live demo:** https://mmajjd926-netizen.github.io/nutcast/ (press *Try the demo show*; the default mint is the
 test mint `testnut.cashu.space`, so top-ups are free and nothing is real money).
 
+**76-second walkthrough (captioned video):** [watch walkthrough.mp4](https://mmajjd926-netizen.github.io/nutcast/walkthrough.mp4) — top-up, a Lightning split, an ecash split over NUT-18, the podcaster's inbox, then a nutzap boost and streaming as nutzaps.
+
+[![Nutcast walkthrough video: streaming to a show as nutzaps](shots/walkthrough.jpg)](https://mmajjd926-netizen.github.io/nutcast/walkthrough.mp4)
+
 **Real show:** [Nodesignal in Nutcast](https://mmajjd926-netizen.github.io/nutcast/?feed=https%3A%2F%2Fserve.podhome.fm%2Frss%2Fe8df0b13-47de-544a-99b7-ec7cbd960a16).
 Its feed and its Lightning addresses allow browser requests, so the whole path runs from the page: every episode's
 split (host + guest Lightning addresses) is read and paid. On the test mint the melt is simulated; pick a real mint

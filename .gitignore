@@ -3,3 +3,4 @@ dist
 *.tmp.*
 shots/video
 shots/video-nz
+tools/video/t/
